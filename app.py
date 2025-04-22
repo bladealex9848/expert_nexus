@@ -2471,6 +2471,8 @@ if prompt:
                                         st.session_state.pop("expert_choice", None)
                                         if response_text:
                                             st.rerun()
+                                        else:
+                                            st.error(APP_IDENTITY["response_error"])
                                 elif st.session_state.expert_choice == "current":
                                     # Continuar con el experto actual
                                     with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
