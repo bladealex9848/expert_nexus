@@ -1,5 +1,5 @@
 # Dependencias core
-streamlit>=1.30.0,<1.45.0        # Framework principal de la aplicación web
+streamlit>=1.30.0,<1.45.0        # Framework principal de la aplicación web (nota: la carga de archivos en chat_input requiere 1.45.0+)
 openai>=1.3.0,<1.70.0            # API oficial de OpenAI (compatible con Assistants v2)
 mistralai>=0.0.7                 # Cliente oficial de Mistral AI
 python-dotenv>=1.0.0             # Carga de variables de entorno
