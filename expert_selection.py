@@ -164,19 +164,29 @@ def handle_expert_selection(user_text, suggested_expert, process_message_func):
                     logging.info(f"Usuario eligió usar el experto sugerido: {selection_state['suggested_expert']}")
                     # Usar el experto sugerido
                     with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[selection_state['suggested_expert']]['titulo']}..."):
+                        # Guardar el experto sugerido en una variable local para asegurarnos de que no cambie
+                        suggested_expert_key = selection_state["suggested_expert"]
+
                         # Cambiar al experto sugerido
-                        success = change_expert(selection_state["suggested_expert"], "Cambio automático por palabras clave")
+                        success = change_expert(suggested_expert_key, "Cambio automático por palabras clave")
                         logging.info(f"Cambio de experto result: {success}")
 
                         if not success:
-                            logging.error(f"No se pudo cambiar al experto sugerido: {selection_state['suggested_expert']}")
+                            logging.error(f"No se pudo cambiar al experto sugerido: {suggested_expert_key}")
                             st.error(f"No se pudo cambiar al experto sugerido. Continuando con el experto actual.")
                             # Procesar con el experto actual como fallback
                             response_text = process_message_func(user_text, st.session_state.current_expert)
                         else:
+                            # Verificar que el cambio de experto se haya realizado correctamente
+                            if st.session_state.current_expert != suggested_expert_key:
+                                logging.error(f"El cambio de experto no se reflejó correctamente. Esperado: {suggested_expert_key}, Actual: {st.session_state.current_expert}")
+                                # Forzar el cambio de experto nuevamente
+                                st.session_state.current_expert = suggested_expert_key
+                                logging.info(f"Experto forzado a: {st.session_state.current_expert}")
+
                             # Procesar el mensaje con el experto sugerido
-                            logging.info(f"Procesando mensaje con experto: {selection_state['suggested_expert']}")
-                            response_text = process_message_func(user_text, selection_state["suggested_expert"])
+                            logging.info(f"Procesando mensaje con experto: {suggested_expert_key}")
+                            response_text = process_message_func(user_text, suggested_expert_key)
 
                         logging.info(f"Respuesta obtenida: {response_text is not None}")
 
@@ -246,5 +256,15 @@ def reset_for_new_message():
     Reinicia el estado de selección de expertos para un nuevo mensaje.
     """
     # Si el mensaje actual ya fue procesado, reiniciar para el próximo mensaje
-    if "expert_selection_state" in st.session_state and st.session_state.expert_selection_state["processed"]:
-        reset_expert_selection_state()
+    if "expert_selection_state" in st.session_state:
+        if st.session_state.expert_selection_state["processed"]:
+            logging.info("Reiniciando estado de selección para un nuevo mensaje (mensaje procesado)")
+            reset_expert_selection_state()
+        elif st.session_state.expert_selection_state["pending"] and not st.session_state.expert_selection_state["choice"]:
+            # Si hay una selección pendiente pero no se ha hecho una elección, mantener el estado
+            logging.info("Manteniendo estado de selección pendiente para continuar el flujo")
+            pass
+        else:
+            # En otros casos, reiniciar para evitar estados inconsistentes
+            logging.info("Reiniciando estado de selección para un nuevo mensaje (caso general)")
+            reset_expert_selection_state()
