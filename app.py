@@ -176,48 +176,102 @@ APP_VERSION = APP_IDENTITY["version"]
 # Sistema unificado para cargar configuración desde secrets o archivo local
 logging.info("Inicializando configuración unificada para todos los entornos")
 
-# Inicializar variables con valores predeterminados
-os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
-os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
-
+# Sistema unificado para cargar configuración desde secrets o valores predeterminados
 # Detectar entorno (local o cloud)
 is_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud'
 logging.info(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
 
-# Sobrescribir con secrets si están disponibles
+# Inicializar con valores predeterminados (solo como fallback)
+default_openai_key = assistants_config.OPENAI_API_KEY
+default_mistral_key = assistants_config.MISTRAL_API_KEY
+default_assistant_id = assistants_config.ASSISTANT_ID
+
+# Cargar desde secrets.toml (prioridad máxima)
 if hasattr(st, 'secrets'):
     try:
-        # Cargar clave API de OpenAI
+        # 1. Cargar clave API de OpenAI (estructura anidada)
         if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
             openai_key = st.secrets["openai"]["api_key"]
-            # En Cloud, siempre usar el valor de secrets sin verificar el formato
-            if is_cloud or (openai_key and not openai_key.startswith('sk-your-')):
+            if openai_key and not openai_key.startswith('sk-your-'):
                 os.environ["OPENAI_API_KEY"] = openai_key
-                logging.info("Clave API de OpenAI cargada desde secrets")
+                logging.info("Clave API de OpenAI cargada desde secrets (estructura anidada)")
+        # 1.1 Intentar estructura plana como alternativa
+        elif 'OPENAI_API_KEY' in st.secrets:
+            openai_key = st.secrets["OPENAI_API_KEY"]
+            if openai_key and not openai_key.startswith('sk-your-'):
+                os.environ["OPENAI_API_KEY"] = openai_key
+                logging.info("Clave API de OpenAI cargada desde secrets (estructura plana)")
+        else:
+            # Solo usar el valor predeterminado si no hay secreto configurado
+            os.environ["OPENAI_API_KEY"] = default_openai_key
+            logging.warning("Usando valor predeterminado para OPENAI_API_KEY (no recomendado para producción)")
 
-        # Cargar clave API de Mistral
+        # 2. Cargar clave API de Mistral (estructura anidada)
         if 'mistral' in st.secrets and 'api_key' in st.secrets['mistral']:
-            os.environ["MISTRAL_API_KEY"] = st.secrets["mistral"]["api_key"]
-            logging.info("Clave API de Mistral cargada desde secrets")
+            mistral_key = st.secrets["mistral"]["api_key"]
+            if mistral_key and not mistral_key.startswith('your-'):
+                os.environ["MISTRAL_API_KEY"] = mistral_key
+                logging.info("Clave API de Mistral cargada desde secrets (estructura anidada)")
+        # 2.1 Intentar estructura plana como alternativa
+        elif 'MISTRAL_API_KEY' in st.secrets:
+            mistral_key = st.secrets["MISTRAL_API_KEY"]
+            if mistral_key and not mistral_key.startswith('your-'):
+                os.environ["MISTRAL_API_KEY"] = mistral_key
+                logging.info("Clave API de Mistral cargada desde secrets (estructura plana)")
+        else:
+            # Solo usar el valor predeterminado si no hay secreto configurado
+            os.environ["MISTRAL_API_KEY"] = default_mistral_key
+            logging.warning("Usando valor predeterminado para MISTRAL_API_KEY (no recomendado para producción)")
 
-        # Cargar ID del asistente
+        # 3. Cargar ID del asistente (estructura anidada)
         if 'openai' in st.secrets and 'assistant_id' in st.secrets['openai']:
-            os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
-            logging.info("ID del asistente cargado desde secrets")
+            assistant_id = st.secrets["openai"]["assistant_id"]
+            if assistant_id:
+                os.environ["ASSISTANT_ID"] = assistant_id
+                logging.info("ID del asistente cargado desde secrets (estructura anidada)")
+        # 3.1 Intentar estructura plana como alternativa
+        elif 'ASSISTANT_ID' in st.secrets:
+            assistant_id = st.secrets["ASSISTANT_ID"]
+            if assistant_id:
+                os.environ["ASSISTANT_ID"] = assistant_id
+                logging.info("ID del asistente cargado desde secrets (estructura plana)")
+        else:
+            # Solo usar el valor predeterminado si no hay secreto configurado
+            os.environ["ASSISTANT_ID"] = default_assistant_id
+            logging.info("Usando ID de asistente predeterminado (asistente virtual)")
 
-        # Cargar modelo de API (si está definido)
+        # 4. Cargar modelo de API (si está definido)
         if 'openai' in st.secrets and 'api_model' in st.secrets['openai']:
             os.environ["OPENAI_API_MODEL"] = st.secrets["openai"]["api_model"]
             logging.info(f"Modelo API cargado desde secrets: {os.environ['OPENAI_API_MODEL']}")
 
     except Exception as e:
         logging.error(f"Error al cargar secrets: {str(e)}")
-        # Ya tenemos los valores predeterminados, no es necesario hacer nada más
+        # Usar valores predeterminados como fallback
+        os.environ["OPENAI_API_KEY"] = default_openai_key
+        os.environ["MISTRAL_API_KEY"] = default_mistral_key
+        os.environ["ASSISTANT_ID"] = default_assistant_id
+        logging.warning("Usando valores predeterminados debido a error al cargar secrets")
 
 # Verificar que las claves no sean placeholders
 if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
     logging.error("La clave API de OpenAI parece ser un placeholder")
+
+    # Mostrar información de depuración en el log
+    if is_cloud:
+        logging.error("ENTORNO CLOUD DETECTADO - VERIFICANDO CONFIGURACIÓN DE SECRETS")
+        if hasattr(st, 'secrets'):
+            # Verificar estructura de secrets sin mostrar valores
+            secret_keys = list(st.secrets.keys())
+            logging.error(f"Claves en st.secrets: {secret_keys}")
+            if 'openai' in st.secrets:
+                openai_keys = list(st.secrets['openai'].keys())
+                logging.error(f"Claves en st.secrets['openai']: {openai_keys}")
+                if 'api_key' in openai_keys:
+                    key_prefix = st.secrets['openai']['api_key'][:7] if len(st.secrets['openai']['api_key']) > 10 else "[muy corta]"
+                    logging.error(f"Prefijo de la clave en secrets: {key_prefix}...")
+        else:
+            logging.error("st.secrets no está disponible en Streamlit Cloud")
 
     # Mensaje de error diferente según el entorno
     if is_cloud:
@@ -1950,67 +2004,34 @@ st.title(f"{APP_IDENTITY['name']} {APP_IDENTITY['icon']} {APP_IDENTITY['tagline'
 with st.sidebar:
     st.title(f"{APP_IDENTITY['icon']} Configuración y Recursos")
 
-    # Obtener API Key de OpenAI
-    openai_api_key = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener API Key de OpenAI (ya cargada en os.environ)
     openai_api_key = os.environ.get("OPENAI_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
-    if not openai_api_key and hasattr(st, "secrets"):
-        # Intentar estructura plana
-        if "OPENAI_API_KEY" in st.secrets:
-            openai_api_key = st.secrets["OPENAI_API_KEY"]
-            logging.info("Clave API de OpenAI cargada desde secrets (estructura plana)")
-        # Intentar estructura anidada
-        elif "openai" in st.secrets and "api_key" in st.secrets["openai"]:
-            openai_api_key = st.secrets["openai"]["api_key"]
-            logging.info("Clave API de OpenAI cargada desde secrets (estructura anidada)")
-
-    # 3. Solicitar al usuario
-    if not openai_api_key:
+    # Solicitar al usuario solo si no está disponible
+    if not openai_api_key or openai_api_key.startswith('sk-your-'):
         openai_api_key = st.text_input(
             "API Key de OpenAI", type="password", help="Ingrese su API Key de OpenAI"
         )
+        if openai_api_key and not openai_api_key.startswith('sk-your-'):
+            os.environ["OPENAI_API_KEY"] = openai_api_key
+            logging.info("Clave API de OpenAI proporcionada por el usuario")
 
-    # Obtener API Key de Mistral
-    mistral_api_key = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener API Key de Mistral (ya cargada en os.environ)
     mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
-    if not mistral_api_key and hasattr(st, "secrets"):
-        # Intentar estructura plana
-        if "MISTRAL_API_KEY" in st.secrets:
-            mistral_api_key = st.secrets["MISTRAL_API_KEY"]
-            logging.info("Clave API de Mistral cargada desde secrets (estructura plana)")
-        # Intentar estructura anidada
-        elif "mistral" in st.secrets and "api_key" in st.secrets["mistral"]:
-            mistral_api_key = st.secrets["mistral"]["api_key"]
-            logging.info("Clave API de Mistral cargada desde secrets (estructura anidada)")
-
-    # 3. Solicitar al usuario
-    if not mistral_api_key:
+    # Solicitar al usuario solo si no está disponible
+    if not mistral_api_key or mistral_api_key.startswith('your-'):
         mistral_api_key = st.text_input(
             "API Key de Mistral",
             type="password",
             help="Ingrese su API Key de Mistral para OCR",
         )
+        if mistral_api_key and not mistral_api_key.startswith('your-'):
+            os.environ["MISTRAL_API_KEY"] = mistral_api_key
+            logging.info("Clave API de Mistral proporcionada por el usuario")
 
-    # Obtener Assistant ID - Ya no se usa directamente, se usa el ID del experto actual
-    assistant_id = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener Assistant ID (ya cargado en os.environ)
     assistant_id = os.environ.get("ASSISTANT_ID")
-
-    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
-    if not assistant_id and hasattr(st, "secrets"):
-        # Intentar estructura plana
-        if "ASSISTANT_ID" in st.secrets:
-            assistant_id = st.secrets["ASSISTANT_ID"]
-            logging.info("ID del asistente cargado desde secrets (estructura plana)")
-        # Intentar estructura anidada
-        elif "openai" in st.secrets and "assistant_id" in st.secrets["openai"]:
-            assistant_id = st.secrets["openai"]["assistant_id"]
-            logging.info("ID del asistente cargado desde secrets (estructura anidada)")
 
     # Verificar configuración
     if openai_api_key and mistral_api_key:
