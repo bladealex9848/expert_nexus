@@ -2343,33 +2343,26 @@ file_types = [ext[1:] for ext in ALLOWED_EXTENSIONS]  # Quitar el punto inicial
 # Mostrar mensaje sobre formatos permitidos
 st.caption(APP_IDENTITY["allowed_formats_message"])
 
-# Input de chat (sin soporte para archivos en versiones anteriores a 1.45.0)
-prompt = st.chat_input(APP_IDENTITY["chat_placeholder"])
-
-# Soporte para carga de archivos separado
-uploaded_files = st.file_uploader(
-    "Arrastra o selecciona archivos para analizar",
-    type=file_types,
-    accept_multiple_files=True,
-    key="file_uploader"
+# Input de chat con soporte para archivos
+prompt = st.chat_input(
+    APP_IDENTITY["chat_placeholder"],
+    accept_file=True,
+    file_type=file_types,
 )
 
 # Procesar la entrada del usuario
-if prompt or uploaded_files:
+if prompt:
     # Verificar si hay texto o archivos
     user_text = ""
     user_files = []
 
-    # Obtener el texto del chat input
-    if prompt:
-        user_text = prompt
+    if hasattr(prompt, "text"):
+        user_text = prompt.text
 
-    # Obtener los archivos del file uploader
-    if uploaded_files:
-        if isinstance(uploaded_files, list):
-            user_files = uploaded_files
-        else:
-            user_files = [uploaded_files]
+    if hasattr(prompt, "files") and prompt.files:
+        user_files = prompt.files
+    elif isinstance(prompt, dict) and "files" in prompt and prompt["files"]:
+        user_files = prompt["files"]
 
     # Documentos para compartir en el contexto
     current_doc_contents = {}
