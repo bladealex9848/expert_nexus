@@ -79,17 +79,19 @@ APP_IDENTITY = {
     """,
     # User instructions
     "usage_instructions": """
-    1. **Consulta inicial**: Escribe tu pregunta en el chat. El sistema seleccionará automáticamente el experto más adecuado o usará el experto actual.
+    1. **Consulta inicial**: Escribe tu pregunta en el chat. El sistema usará el experto actual para responder.
 
-    2. **Cambio de experto**: Si deseas cambiar manualmente de experto, utiliza el selector en la barra lateral y haz clic en "Cambiar a este experto".
+    2. **Cambio de experto**: Si deseas cambiar de experto, utiliza el selector en la barra lateral y haz clic en "Cambiar a este experto".
 
-    3. **Sugerencias automáticas**: Cuando tu consulta parezca más adecuada para otro experto, el sistema te sugerirá cambiar automáticamente.
+    3. **Persistencia del chat**: Al cambiar de experto, el chat siempre se mantiene para preservar el contexto completo de la conversación.
 
-    4. **Historial de cambios**: Puedes ver un registro cronológico de los expertos utilizados durante la conversación en la barra lateral.
+    4. **Archivos adjuntos**: Puedes elegir si deseas mantener o no los archivos adjuntos al cambiar de experto.
 
-    5. **Nueva conversación**: Para comenzar desde cero, haz clic en "Nueva Conversación" en la barra lateral.
+    5. **Historial de cambios**: Puedes ver un registro cronológico de los expertos utilizados durante la conversación en la barra lateral.
 
-    6. **Documentos adjuntos**: Puedes subir documentos para que los expertos los analicen durante la conversación.
+    6. **Nueva conversación**: Para comenzar desde cero, haz clic en "Nueva Conversación" en la barra lateral.
+
+    7. **Documentos adjuntos**: Puedes subir documentos para que los expertos los analicen durante la conversación.
     """,
     # Document processing information
     "document_processing_info": """
@@ -105,8 +107,8 @@ APP_IDENTITY = {
     **Formatos soportados**: PDF (.pdf), Texto (.txt), Imágenes (.jpg, .jpeg, .png). Otros formatos no serán procesados.
     """,
     # Texto de la interfaz de usuario
-    "chat_placeholder": "¿En qué puedo ayudarte hoy? Puedo cambiar automáticamente al experto más adecuado para tu consulta.",
-    "file_upload_default_message": "He cargado el documento '{files}' para análisis. Puedo asignarlo al experto más adecuado o procesarlo con el experto actual.",
+    "chat_placeholder": "¿En qué puedo ayudarte hoy? Puedes cambiar manualmente de experto en la barra lateral.",
+    "file_upload_default_message": "He cargado el documento '{files}' para análisis. El experto actual lo procesará para proporcionar respuestas más precisas.",
     "badges": """
     ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fexpertnexus.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
     """,
@@ -116,7 +118,6 @@ APP_IDENTITY = {
 
     Soy tu sistema avanzado de asistentes especializados que permite acceder a múltiples dominios de conocimiento a través de una interfaz unificada.
 
-    * Puedo cambiar automáticamente entre diferentes expertos según tu consulta
     * Mantengo el contexto completo de la conversación entre cambios de experto
     * Te permito seleccionar manualmente el especialista que deseas consultar
     * Muestro qué experto está respondiendo en cada momento
