@@ -1888,11 +1888,16 @@ with st.sidebar:
             index=current_expert_index
         )
 
+        # Opción para preservar el contexto
+        preserve_context = st.checkbox("Preservar contexto y archivos", value=True, help="Mantiene los mensajes y archivos adjuntos al cambiar de experto")
+
         # Botón para confirmar el cambio de experto
         if st.button("Cambiar a este experto", use_container_width=True):
-            if expert_selection.change_expert(selected_expert):
+            if expert_selection.change_expert(selected_expert, "Cambio manual de experto", preserve_context):
                 st.success(f"Experto cambiado a: {expert_options[selected_expert]}")
                 st.rerun()
+            else:
+                st.error(f"No se pudo cambiar al experto seleccionado")
     else:
         st.warning("No se pudo cargar la configuración de expertos.")
 
@@ -2038,7 +2043,7 @@ if not openai_api_key or not mistral_api_key or not assistant_id:
 
 
 
-def change_expert(expert_key, reason="Selección manual"):
+def change_expert(expert_key, reason="Selección manual", preserve_context=True):
     """
     Cambia el experto actual y registra el cambio en el historial.
     Esta función es un wrapper para la función del módulo expert_selection.
@@ -2046,12 +2051,13 @@ def change_expert(expert_key, reason="Selección manual"):
     Parámetros:
         expert_key: Clave del experto a seleccionar
         reason: Razón del cambio de experto
+        preserve_context: Si se debe preservar el contexto (mensajes y archivos) entre cambios
 
     Retorno:
         bool: True si el cambio fue exitoso, False en caso contrario
     """
     # Usar la función del módulo expert_selection
-    return expert_selection.change_expert(expert_key, reason)
+    return expert_selection.change_expert(expert_key, reason, preserve_context)
 
 # Diccionario de palabras clave para cada experto
 keywords_dict = {
