@@ -1,0 +1,148 @@
+2025-04-22 11:28:02,919 - test_expert_selection - INFO - === INICIANDO PRUEBAS AUTOMATIZADAS DE SELECCIÓN DE EXPERTOS ===
+2025-04-22 11:28:02,919 - test_expert_selection - INFO - 
+=== PRUEBA: SELECCIONAR EXPERTO SUGERIDO ===
+2025-04-22 11:28:02,919 - test_expert_selection - INFO - 
+--- Primera ejecución: mostrar opciones ---
+2025-04-22 11:28:02,920 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:28:02,920 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,921 - root - INFO - Estado actual de selección: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,921 - root - INFO - Mostrando opciones de selección para el experto: tutela
+2025-04-22 11:28:02,921 - test_expert_selection - INFO - [INFO] Tu mensaje parece relacionado con 'TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición'. ¿Quieres cambiar de experto?
+2025-04-22 11:28:02,922 - root - INFO - Estado guardado para la próxima ejecución: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,922 - test_expert_selection - INFO - [BUTTON] Usar experto sugerido (key: use_suggested)
+2025-04-22 11:28:02,922 - test_expert_selection - INFO - [BUTTON] Continuar con experto actual (key: keep_current)
+2025-04-22 11:28:02,923 - root - INFO - Deteniendo flujo normal para mostrar opciones de selección
+2025-04-22 11:28:02,923 - test_expert_selection - INFO - 
+--- Segunda ejecución: usuario selecciona 'Usar experto sugerido' ---
+2025-04-22 11:28:02,923 - root - INFO - Estado de selección de expertos ya existe: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,924 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,924 - root - INFO - Estado actual de selección: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,924 - root - INFO - Hay una selección pendiente para este mensaje. Choice: suggested
+2025-04-22 11:28:02,927 - root - INFO - Usuario eligió usar el experto sugerido: tutela
+2025-04-22 11:28:02,928 - test_expert_selection - INFO - [SPINNER] Procesando tu mensaje con TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición...
+2025-04-22 11:28:02,928 - root - INFO - Experto cambiado a 'tutela'. Razón: Cambio automático por palabras clave
+2025-04-22 11:28:02,929 - root - INFO - Cambio de experto result: True
+2025-04-22 11:28:02,929 - root - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:28:02,929 - test_expert_selection - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:28:02,930 - test_expert_selection - INFO - Mensaje: 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?'
+2025-04-22 11:28:02,930 - root - INFO - Respuesta obtenida: True
+2025-04-22 11:28:02,930 - test_expert_selection - INFO - 
+=== PRUEBA COMPLETADA: SELECCIONAR EXPERTO SUGERIDO ===
+2025-04-22 11:28:02,931 - test_expert_selection - INFO - Resultado: EXITOSO
+2025-04-22 11:28:02,931 - test_expert_selection - INFO - 
+=== PRUEBA: CONTINUAR CON EXPERTO ACTUAL ===
+2025-04-22 11:28:02,931 - test_expert_selection - INFO - 
+--- Primera ejecución: mostrar opciones ---
+2025-04-22 11:28:02,931 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:28:02,932 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,932 - root - INFO - Estado actual de selección: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,932 - root - INFO - Mostrando opciones de selección para el experto: tutela
+2025-04-22 11:28:02,933 - test_expert_selection - INFO - [INFO] Tu mensaje parece relacionado con 'TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición'. ¿Quieres cambiar de experto?
+2025-04-22 11:28:02,933 - root - INFO - Estado guardado para la próxima ejecución: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,933 - test_expert_selection - INFO - [BUTTON] Usar experto sugerido (key: use_suggested)
+2025-04-22 11:28:02,934 - test_expert_selection - INFO - [BUTTON] Continuar con experto actual (key: keep_current)
+2025-04-22 11:28:02,934 - root - INFO - Deteniendo flujo normal para mostrar opciones de selección
+2025-04-22 11:28:02,934 - test_expert_selection - INFO - 
+--- Segunda ejecución: usuario selecciona 'Continuar con experto actual' ---
+2025-04-22 11:28:02,935 - root - INFO - Estado de selección de expertos ya existe: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'current', 'processed': False}
+2025-04-22 11:28:02,935 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,935 - root - INFO - Estado actual de selección: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'current', 'processed': False}
+2025-04-22 11:28:02,936 - root - INFO - Hay una selección pendiente para este mensaje. Choice: current
+2025-04-22 11:28:02,936 - root - INFO - Usuario eligió continuar con el experto actual
+2025-04-22 11:28:02,936 - test_expert_selection - INFO - [SPINNER] Procesando tu mensaje con Asistente Virtual de Inteligencia Artificial...
+2025-04-22 11:28:02,937 - root - INFO - Procesando mensaje con experto actual: asistente_virtual
+2025-04-22 11:28:02,937 - test_expert_selection - INFO - Procesando mensaje con experto: asistente_virtual
+2025-04-22 11:28:02,938 - test_expert_selection - INFO - Mensaje: 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?'
+2025-04-22 11:28:02,938 - root - INFO - Respuesta obtenida: True
+2025-04-22 11:28:02,939 - test_expert_selection - INFO - 
+=== PRUEBA COMPLETADA: CONTINUAR CON EXPERTO ACTUAL ===
+2025-04-22 11:28:02,939 - test_expert_selection - INFO - Resultado: EXITOSO
+2025-04-22 11:28:02,940 - test_expert_selection - INFO - 
+=== PRUEBA: SIN EXPERTO SUGERIDO ===
+2025-04-22 11:28:02,940 - test_expert_selection - INFO - 
+--- Ejecución: procesar directamente ---
+2025-04-22 11:28:02,940 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:28:02,940 - root - INFO - handle_expert_selection - user_text: '¿Cuál es la capital de Francia?...', suggested_expert: 'None'
+2025-04-22 11:28:02,941 - root - INFO - No hay experto sugerido o es el mismo que el actual, continuando con flujo normal
+2025-04-22 11:28:02,942 - test_expert_selection - INFO - Procesando mensaje con experto: asistente_virtual
+2025-04-22 11:28:02,943 - test_expert_selection - INFO - Mensaje: '¿Cuál es la capital de Francia?'
+2025-04-22 11:28:02,943 - test_expert_selection - INFO - 
+=== PRUEBA COMPLETADA: SIN EXPERTO SUGERIDO ===
+2025-04-22 11:28:02,943 - test_expert_selection - INFO - Resultado: EXITOSO
+2025-04-22 11:28:02,944 - test_expert_selection - INFO - 
+=== PRUEBA: MÚLTIPLES MENSAJES ===
+2025-04-22 11:28:02,944 - test_expert_selection - INFO - 
+--- Primera ejecución: mostrar opciones para mensaje 1 ---
+2025-04-22 11:28:02,944 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:28:02,945 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,945 - root - INFO - Estado actual de selección: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,945 - root - INFO - Mostrando opciones de selección para el experto: tutela
+2025-04-22 11:28:02,946 - test_expert_selection - INFO - [INFO] Tu mensaje parece relacionado con 'TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición'. ¿Quieres cambiar de experto?
+2025-04-22 11:28:02,946 - root - INFO - Estado guardado para la próxima ejecución: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,946 - test_expert_selection - INFO - [BUTTON] Usar experto sugerido (key: use_suggested)
+2025-04-22 11:28:02,946 - test_expert_selection - INFO - [BUTTON] Continuar con experto actual (key: keep_current)
+2025-04-22 11:28:02,947 - root - INFO - Deteniendo flujo normal para mostrar opciones de selección
+2025-04-22 11:28:02,947 - test_expert_selection - INFO - 
+--- Segunda ejecución: usuario selecciona 'Usar experto sugerido' para mensaje 1 ---
+2025-04-22 11:28:02,947 - root - INFO - Estado de selección de expertos ya existe: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,948 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:28:02,948 - root - INFO - Estado actual de selección: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,948 - root - INFO - Hay una selección pendiente para este mensaje. Choice: suggested
+2025-04-22 11:28:02,948 - root - INFO - Usuario eligió usar el experto sugerido: tutela
+2025-04-22 11:28:02,949 - test_expert_selection - INFO - [SPINNER] Procesando tu mensaje con TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición...
+2025-04-22 11:28:02,949 - root - INFO - Experto cambiado a 'tutela'. Razón: Cambio automático por palabras clave
+2025-04-22 11:28:02,950 - root - INFO - Cambio de experto result: True
+2025-04-22 11:28:02,950 - root - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:28:02,950 - test_expert_selection - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:28:02,951 - test_expert_selection - INFO - Mensaje: 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?'
+2025-04-22 11:28:02,951 - root - INFO - Respuesta obtenida: True
+2025-04-22 11:28:02,951 - root - INFO - Reiniciando estado de selección para un nuevo mensaje (mensaje procesado)
+2025-04-22 11:28:02,952 - root - INFO - Reiniciando estado de selección de expertos
+2025-04-22 11:28:02,952 - root - INFO - Estado de selección de expertos reiniciado
+2025-04-22 11:28:02,953 - test_expert_selection - INFO - 
+--- Tercera ejecución: mostrar opciones para mensaje 2 ---
+2025-04-22 11:28:02,953 - root - INFO - Estado de selección de expertos ya existe: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,953 - root - INFO - handle_expert_selection - user_text: 'Necesito implementar una estrategia de transformac...', suggested_expert: 'transformacion_digital'
+2025-04-22 11:28:02,954 - root - INFO - Estado actual de selección: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,954 - root - INFO - Mostrando opciones de selección para el experto: transformacion_digital
+2025-04-22 11:28:02,954 - test_expert_selection - INFO - [INFO] Tu mensaje parece relacionado con 'Experto en Transformación Digital'. ¿Quieres cambiar de experto?
+2025-04-22 11:28:02,954 - root - INFO - Estado guardado para la próxima ejecución: {'pending': True, 'message': 'Necesito implementar una estrategia de transformación digital en mi empresa', 'suggested_expert': 'transformacion_digital', 'choice': None, 'processed': False}
+2025-04-22 11:28:02,955 - test_expert_selection - INFO - [BUTTON] Usar experto sugerido (key: use_suggested)
+2025-04-22 11:28:02,955 - test_expert_selection - INFO - [BUTTON] Continuar con experto actual (key: keep_current)
+2025-04-22 11:28:02,955 - root - INFO - Deteniendo flujo normal para mostrar opciones de selección
+2025-04-22 11:28:02,956 - test_expert_selection - INFO - 
+--- Cuarta ejecución: usuario selecciona 'Usar experto sugerido' para mensaje 2 ---
+2025-04-22 11:28:02,956 - root - INFO - Estado de selección de expertos ya existe: {'pending': True, 'message': 'Necesito implementar una estrategia de transformación digital en mi empresa', 'suggested_expert': 'transformacion_digital', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,956 - root - INFO - handle_expert_selection - user_text: 'Necesito implementar una estrategia de transformac...', suggested_expert: 'transformacion_digital'
+2025-04-22 11:28:02,956 - root - INFO - Estado actual de selección: {'pending': True, 'message': 'Necesito implementar una estrategia de transformación digital en mi empresa', 'suggested_expert': 'transformacion_digital', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:28:02,957 - root - INFO - Hay una selección pendiente para este mensaje. Choice: suggested
+2025-04-22 11:28:02,957 - root - INFO - Usuario eligió usar el experto sugerido: transformacion_digital
+2025-04-22 11:28:02,957 - test_expert_selection - INFO - [SPINNER] Procesando tu mensaje con Experto en Transformación Digital...
+2025-04-22 11:28:02,957 - root - INFO - Experto cambiado a 'transformacion_digital'. Razón: Cambio automático por palabras clave
+2025-04-22 11:28:02,962 - root - INFO - Cambio de experto result: True
+2025-04-22 11:28:02,962 - root - INFO - Procesando mensaje con experto: transformacion_digital
+2025-04-22 11:28:02,962 - test_expert_selection - INFO - Procesando mensaje con experto: transformacion_digital
+2025-04-22 11:28:02,963 - test_expert_selection - INFO - Mensaje: 'Necesito implementar una estrategia de transformación digital en mi empresa'
+2025-04-22 11:28:02,963 - root - INFO - Respuesta obtenida: True
+2025-04-22 11:28:02,964 - test_expert_selection - INFO - 
+=== PRUEBA COMPLETADA: MÚLTIPLES MENSAJES ===
+2025-04-22 11:28:02,964 - test_expert_selection - INFO - Resultado: EXITOSO
+2025-04-22 11:28:02,964 - test_expert_selection - INFO - 
+=== PRUEBA: MANEJO DE ERRORES ===
+2025-04-22 11:28:02,964 - test_expert_selection - INFO - 
+--- Ejecución: procesar con experto inexistente ---
+2025-04-22 11:28:02,965 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:28:02,965 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'experto_inexistente'
+2025-04-22 11:28:02,965 - root - WARNING - Experto sugerido 'experto_inexistente' no encontrado en la configuración
+2025-04-22 11:28:02,966 - test_expert_selection - INFO - Procesando mensaje con experto: asistente_virtual
+2025-04-22 11:28:02,966 - test_expert_selection - INFO - Mensaje: 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?'
+2025-04-22 11:28:02,966 - test_expert_selection - INFO - 
+=== PRUEBA COMPLETADA: MANEJO DE ERRORES ===
+2025-04-22 11:28:02,966 - test_expert_selection - INFO - Resultado: EXITOSO
+2025-04-22 11:28:02,967 - test_expert_selection - INFO - 
+=== RESULTADOS DE LAS PRUEBAS ===
+2025-04-22 11:28:02,967 - test_expert_selection - INFO - Seleccionar experto sugerido: EXITOSO
+2025-04-22 11:28:02,967 - test_expert_selection - INFO - Continuar con experto actual: EXITOSO
+2025-04-22 11:28:02,968 - test_expert_selection - INFO - Sin experto sugerido: EXITOSO
+2025-04-22 11:28:02,968 - test_expert_selection - INFO - Múltiples mensajes: EXITOSO
+2025-04-22 11:28:02,968 - test_expert_selection - INFO - Manejo de errores: EXITOSO

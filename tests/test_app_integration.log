@@ -1,0 +1,50 @@
+2025-04-22 11:29:11,037 - test_app_integration - INFO - === INICIANDO PRUEBA DE INTEGRACIÓN CON APP.PY ===
+2025-04-22 11:29:11,038 - test_app_integration - INFO - 
+=== SIMULANDO INTERACCIÓN CON APP.PY ===
+2025-04-22 11:29:11,038 - root - INFO - Experto sugerido por palabras clave: tutela
+2025-04-22 11:29:11,038 - test_app_integration - INFO - Experto sugerido: tutela
+2025-04-22 11:29:11,039 - test_app_integration - INFO - [MARKDOWN] Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?
+2025-04-22 11:29:11,039 - test_app_integration - INFO - 
+--- Primera ejecución: mostrar opciones ---
+2025-04-22 11:29:11,040 - root - INFO - Inicializando estado de selección de expertos
+2025-04-22 11:29:11,041 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:29:11,042 - root - INFO - Estado actual de selección: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:29:11,042 - root - INFO - Mostrando opciones de selección para el experto: tutela
+2025-04-22 11:29:11,043 - test_app_integration - INFO - [INFO] Tu mensaje parece relacionado con 'TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición'. ¿Quieres cambiar de experto?
+2025-04-22 11:29:11,043 - root - INFO - Estado guardado para la próxima ejecución: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': None, 'processed': False}
+2025-04-22 11:29:11,043 - test_app_integration - INFO - [BUTTON] Usar experto sugerido (key: use_suggested)
+2025-04-22 11:29:11,044 - test_app_integration - INFO - [BUTTON] Continuar con experto actual (key: keep_current)
+2025-04-22 11:29:11,044 - root - INFO - Deteniendo flujo normal para mostrar opciones de selección
+2025-04-22 11:29:11,044 - test_app_integration - INFO - [STOP] Deteniendo la aplicación...
+2025-04-22 11:29:11,045 - test_app_integration - INFO - 
+--- Segunda ejecución: usuario selecciona 'Usar experto sugerido' ---
+2025-04-22 11:29:11,045 - root - INFO - Estado de selección de expertos ya existe: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:29:11,045 - root - INFO - handle_expert_selection - user_text: 'Envie un derecho de petición y no he recibido resp...', suggested_expert: 'tutela'
+2025-04-22 11:29:11,046 - root - INFO - Estado actual de selección: {'pending': True, 'message': 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?', 'suggested_expert': 'tutela', 'choice': 'suggested', 'processed': False}
+2025-04-22 11:29:11,046 - root - INFO - Hay una selección pendiente para este mensaje. Choice: suggested
+2025-04-22 11:29:11,047 - root - INFO - Usuario eligió usar el experto sugerido: tutela
+2025-04-22 11:29:11,047 - test_app_integration - INFO - [SPINNER] Procesando tu mensaje con TutelaBot - Asistente Especializado en Acción de Tutela y Derecho de Petición...
+2025-04-22 11:29:11,047 - root - INFO - Experto cambiado a 'tutela'. Razón: Cambio automático por palabras clave
+2025-04-22 11:29:11,047 - root - INFO - Cambio de experto result: True
+2025-04-22 11:29:11,048 - root - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:29:11,048 - test_app_integration - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:29:11,048 - test_app_integration - INFO - Mensaje: 'Envie un derecho de petición y no he recibido respuesta aun despues de mas de 90 días. Que puedo hacer?'
+2025-04-22 11:29:11,049 - root - INFO - Respuesta obtenida: True
+2025-04-22 11:29:11,049 - test_app_integration - INFO - [MARKDOWN] <div class='expert-name'>TutelaBot</div>
+2025-04-22 11:29:11,049 - test_app_integration - INFO - [MARKDOWN] <div class='expert-message'>Como experto en tutelas, te informo que si han pasado más de 90 días sin respuesta a tu derecho de petición, puedes interponer una acción de tutela por violación al derecho fundamental de petición.</div>
+2025-04-22 11:29:11,050 - root - INFO - Reiniciando estado de selección para un nuevo mensaje (mensaje procesado)
+2025-04-22 11:29:11,050 - root - INFO - Reiniciando estado de selección de expertos
+2025-04-22 11:29:11,050 - root - INFO - Estado de selección de expertos reiniciado
+2025-04-22 11:29:11,050 - test_app_integration - INFO - [MARKDOWN] ¿Cuál es la capital de Francia?
+2025-04-22 11:29:11,051 - test_app_integration - INFO - 
+--- Tercera ejecución: procesar directamente ---
+2025-04-22 11:29:11,051 - root - INFO - Estado de selección de expertos ya existe: {'pending': False, 'message': '', 'suggested_expert': '', 'choice': None, 'processed': False}
+2025-04-22 11:29:11,051 - root - INFO - handle_expert_selection - user_text: '¿Cuál es la capital de Francia?...', suggested_expert: 'None'
+2025-04-22 11:29:11,051 - root - INFO - No hay experto sugerido o es el mismo que el actual, continuando con flujo normal
+2025-04-22 11:29:11,052 - test_app_integration - INFO - Procesando mensaje con experto: tutela
+2025-04-22 11:29:11,052 - test_app_integration - INFO - Mensaje: '¿Cuál es la capital de Francia?'
+2025-04-22 11:29:11,052 - test_app_integration - INFO - [MARKDOWN] <div class='expert-name'>TutelaBot</div>
+2025-04-22 11:29:11,053 - test_app_integration - INFO - [MARKDOWN] <div class='expert-message'>Como experto en tutelas, te informo que si han pasado más de 90 días sin respuesta a tu derecho de petición, puedes interponer una acción de tutela por violación al derecho fundamental de petición.</div>
+2025-04-22 11:29:11,053 - test_app_integration - INFO - 
+=== SIMULACIÓN COMPLETADA ===
+2025-04-22 11:29:11,053 - test_app_integration - INFO - Resultado: EXITOSO
