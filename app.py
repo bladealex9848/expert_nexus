@@ -2342,27 +2342,57 @@ if prompt:
 
                 # Procesar con OCR de Mistral
                 try:
-                    ocr_results = process_document_with_mistral_ocr(
-                        mistral_api_key, file_bytes, file_type, file.name
-                    )
+                    # Registrar información detallada para depuración
+                    logging.info(f"Iniciando procesamiento de {file.name} (tipo: {file_type}, tamaño: {len(file_bytes)} bytes)")
 
-                    if ocr_results and "error" not in ocr_results:
-                        current_doc_contents[file.name] = ocr_results
+                    # Intentar extraer texto directamente para PDFs antes de OCR
+                    extracted_text = None
+                    if file_type == "PDF":
+                        try:
+                            import PyPDF2
+                            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                            pdf_text = ""
+                            for page in pdf_reader.pages:
+                                pdf_text += page.extract_text() + "\n\n"
+
+                            if pdf_text.strip():
+                                logging.info(f"Texto extraído directamente del PDF {file.name}: {len(pdf_text)} caracteres")
+                                extracted_text = {"text": pdf_text, "format": "pdf_direct"}
+                        except Exception as pdf_error:
+                            logging.warning(f"Error extrayendo texto directo del PDF: {str(pdf_error)}")
+
+                    # Si no pudimos extraer texto directamente, usar OCR
+                    if not extracted_text:
+                        ocr_results = process_document_with_mistral_ocr(
+                            mistral_api_key, file_bytes, file_type, file.name
+                        )
+
+                        if ocr_results and "error" not in ocr_results:
+                            extracted_text = ocr_results
+                        else:
+                            error_msg = ocr_results.get("error", "Error desconocido durante el procesamiento")
+                            logging.error(f"Error en OCR para {file.name}: {error_msg}")
+                            # Intentar guardar el contenido crudo como respaldo
+                            if "raw_response" in ocr_results:
+                                extracted_text = {"text": f"Error en OCR: {error_msg}\n\nRespuesta cruda: {str(ocr_results['raw_response'])[:1000]}", "format": "error_with_raw"}
+                            else:
+                                extracted_text = {"text": f"Error en OCR: {error_msg}", "format": "error"}
+
+                    # Guardar el resultado final
+                    if extracted_text:
+                        current_doc_contents[file.name] = extracted_text
                         # Guardar en la sesión para referencia futura
-                        st.session_state.document_contents[file.name] = ocr_results
+                        st.session_state.document_contents[file.name] = extracted_text
                         st.success(f"Documento {file.name} procesado correctamente")
+                        logging.info(f"Documento {file.name} procesado exitosamente con formato {extracted_text.get('format', 'desconocido')}")
                         valid_files += 1
                     else:
-                        error_msg = ocr_results.get(
-                            "error", "Error desconocido durante el procesamiento"
-                        )
-                        st.warning(
-                            f"No se pudo extraer texto completo de {file.name}: {error_msg}"
-                        )
-                        # Aún así, guardamos el resultado para potencial depuración y recuperación parcial
-                        st.session_state.document_contents[file.name] = ocr_results
+                        st.warning(f"No se pudo extraer texto de {file.name}")
+                        logging.warning(f"No se pudo extraer texto de {file.name}")
                 except Exception as e:
                     st.error(f"Error procesando {file.name}: {str(e)}")
+                    logging.error(f"Excepción procesando {file.name}: {str(e)}")
+                    logging.error(traceback.format_exc())
 
             # Mostrar resumen de procesamiento
             if invalid_files > 0:
@@ -2380,22 +2410,34 @@ if prompt:
     if not user_text and user_files:
         file_names = [f.name for f in user_files]
 
-        # Verificar si hay contenido de archivos de texto para incluirlo en el mensaje
-        text_file_contents = ""
+        # Verificar si hay contenido de archivos para incluirlo en el mensaje
+        file_contents = ""
         for file_name, content in current_doc_contents.items():
+            # Procesar archivos de texto
             if file_name.lower().endswith('.txt') and 'text' in content:
-                text_file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
+                file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
                 if len(content['text']) > 5000:
-                    text_file_contents += "\n[Contenido truncado por longitud...]\n"
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+            # Procesar archivos PDF
+            elif (file_name.lower().endswith('.pdf') and 'text' in content):
+                file_contents += f"\n\nContenido del PDF {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+            # Procesar otros tipos de archivos con texto
+            elif 'text' in content and content['text']:
+                file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
 
         # Mensaje base
         user_text = APP_IDENTITY["file_upload_default_message"].format(
             files=", ".join(file_names)
         )
 
-        # Añadir contenido de archivos de texto si existe
-        if text_file_contents:
-            user_text += text_file_contents
+        # Añadir contenido de archivos si existe
+        if file_contents:
+            user_text += file_contents
+            logging.info(f"Mensaje generado con contenido de {len(current_doc_contents)} archivos")
 
     # Si no hay ni texto ni archivos, no hacemos nada
     if not user_text and not user_files:
