@@ -22,10 +22,12 @@ La plataforma cuenta con expertos en áreas como transformación digital, inteli
 - **Cambio Fluido**: Transición sin interrupciones entre diferentes especialistas
 - **Persistencia de Contexto**: Mantenimiento del hilo completo de la conversación al cambiar de experto
 
-### 2. Detección Automática de Temas
-- **Análisis de Palabras Clave**: Sistema que identifica el tema principal del mensaje
-- **Sugerencias Inteligentes**: Recomendación automática del experto más adecuado
-- **Cambio Asistido**: Opción para aceptar o rechazar la sugerencia de cambio de experto
+### 2. Gestión de Expertos
+- **Selección Manual**: Interfaz para elegir el experto deseado
+- **Persistencia de Contexto**: Opción para mantener o limpiar el contexto al cambiar de experto
+- **Historial de Cambios**: Registro detallado de los cambios de experto realizados
+
+> **Nota**: La detección automática de temas está planificada para futuras versiones
 
 ### 3. Visualización del Estado Actual
 - **Identificación Clara**: Muestra qué experto está respondiendo en cada momento
@@ -205,9 +207,9 @@ Los scripts detectarán que el entorno virtual ya existe y te preguntarán si de
    - Selecciona el experto deseado en el menú desplegable de la barra lateral
    - Haz clic en "Cambiar a este experto" para confirmar
 
-3. **Aceptar Sugerencias Automáticas**
-   - Cuando el sistema detecte que otro experto podría ser más adecuado, te lo sugerirá
-   - Puedes aceptar el cambio o continuar con el experto actual
+3. **Preservar Contexto al Cambiar de Experto**
+   - Al cambiar de experto, el chat siempre se mantiene para preservar el contexto completo
+   - Puedes elegir si deseas mantener o no los archivos adjuntos al cambiar de experto
 
 4. **Visualizar el Historial**
    - Revisa el registro de cambios de experto en la barra lateral
@@ -219,11 +221,19 @@ Los scripts detectarán que el entorno virtual ya existe y te preguntarán si de
 
 ## ⚠️ Limitaciones
 
-- La detección automática de temas se basa en palabras clave y puede no ser perfecta en todos los casos
+- La selección de expertos es actualmente manual; la detección automática está planificada para futuras versiones
 - Aunque se mantiene el contexto, cada experto tiene su propia especialidad y enfoque
 - La calidad de las respuestas depende de la configuración de cada asistente en OpenAI
 - Las respuestas están limitadas por el conocimiento disponible hasta la fecha de entrenamiento
 - El sistema no reemplaza la consulta con profesionales humanos especializados para casos críticos
+
+## 📝 Mejoras Planificadas
+
+### Detección Automática de Expertos
+- Implementación de un sistema de análisis de palabras clave para identificar el tema principal del mensaje
+- Sugerencias inteligentes para recomendar automáticamente el experto más adecuado
+- Opción para aceptar o rechazar la sugerencia de cambio de experto
+- Mejora de la precisión en la detección de temas mediante técnicas avanzadas de procesamiento de lenguaje natural
 
 ## 📊 Escenarios de Uso
 

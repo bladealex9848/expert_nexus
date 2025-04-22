@@ -156,8 +156,8 @@ def change_expert(expert_key, reason="Selección manual", preserve_context=True)
         # Guardar el experto anterior para el log
         previous_expert = st.session_state.current_expert if hasattr(st.session_state, 'current_expert') else None
 
-        # Guardar el contexto actual si es necesario
-        if preserve_context and hasattr(st.session_state, 'messages'):
+        # Siempre preservar el contexto de mensajes (chat)
+        if hasattr(st.session_state, 'messages'):
             log_state(f"Preservando contexto de mensajes para el nuevo experto")
             # Los mensajes ya están en st.session_state.messages, no es necesario hacer nada más
 
@@ -165,6 +165,15 @@ def change_expert(expert_key, reason="Selección manual", preserve_context=True)
         if preserve_context and hasattr(st.session_state, 'uploaded_files'):
             log_state(f"Preservando archivos adjuntos para el nuevo experto")
             # Los archivos ya están en st.session_state.uploaded_files, no es necesario hacer nada más
+        elif not preserve_context and hasattr(st.session_state, 'uploaded_files') and st.session_state.uploaded_files:
+            log_state(f"Limpiando archivos adjuntos al cambiar de experto")
+            # Guardar los archivos para el log
+            previous_files = list(st.session_state.uploaded_files)
+            # Limpiar los archivos
+            st.session_state.uploaded_files = []
+            # Limpiar el contenido de los documentos si existe
+            if hasattr(st.session_state, 'document_contents'):
+                st.session_state.document_contents = {}
 
         # Cambiar el experto actual
         st.session_state.current_expert = expert_key
