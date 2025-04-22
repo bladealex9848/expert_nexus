@@ -138,7 +138,46 @@ ASSISTANTS_CONFIG = {
 
 # Configuración de API Keys - Usar variables de entorno o secrets.toml en producción
 # NO incluir claves reales en el código fuente
-OPENAI_API_KEY = "sk-your-openai-api-key"
-MISTRAL_API_KEY = "your-mistral-api-key"
-# Usar el ID del asistente virtual como predeterminado
-ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+
+# Intentar importar streamlit para acceder a secrets
+try:
+    import streamlit as st
+    import os
+
+    # Detectar entorno (local o cloud)
+    is_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud'
+
+    # Obtener claves de secrets.toml si están disponibles
+    if hasattr(st, 'secrets'):
+        # Clave API de OpenAI
+        if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
+            OPENAI_API_KEY = st.secrets['openai']['api_key']
+        else:
+            OPENAI_API_KEY = "sk-your-openai-api-key"
+
+        # Clave API de Mistral
+        if 'mistral' in st.secrets and 'api_key' in st.secrets['mistral']:
+            MISTRAL_API_KEY = st.secrets['mistral']['api_key']
+        else:
+            MISTRAL_API_KEY = "your-mistral-api-key"
+
+        # ID del asistente
+        if 'openai' in st.secrets and 'assistant_id' in st.secrets['openai']:
+            ASSISTANT_ID = st.secrets['openai']['assistant_id']
+        else:
+            # Usar el ID del asistente virtual como predeterminado
+            ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+    else:
+        # Valores predeterminados si no hay secrets
+        OPENAI_API_KEY = "sk-your-openai-api-key"
+        MISTRAL_API_KEY = "your-mistral-api-key"
+        ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+
+    # Mensaje de depuración
+    print(f"Configuración cargada en assistants_config.py - Entorno: {'Streamlit Cloud' if is_cloud else 'Local'}")
+
+except ImportError:
+    # Si no se puede importar streamlit, usar valores predeterminados
+    OPENAI_API_KEY = "sk-your-openai-api-key"
+    MISTRAL_API_KEY = "your-mistral-api-key"
+    ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
