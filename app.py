@@ -2087,10 +2087,11 @@ keywords_dict = {
     "tutela": ["tutela", "acción de tutela", "derecho de petición", "amparo", "protección"]
 }
 
+@handle_error(max_retries=1)
 def detect_expert(message):
     """
     Analiza el texto del mensaje y sugiere el experto más adecuado
-    basado en palabras clave.
+    usando una combinación de palabras clave y, opcionalmente, la API de OpenAI.
 
     Parámetros:
         message: Texto del mensaje del usuario
@@ -2101,18 +2102,83 @@ def detect_expert(message):
     if not message:
         return None
 
+    # Método 1: Detección basada en palabras clave (rápido y sin costo)
     message_lower = message.lower()
     matches = {}
 
     # Buscar coincidencias de palabras clave
     for expert, keywords in keywords_dict.items():
-        match_count = sum(1 for keyword in keywords if keyword in message_lower)
-        if match_count > 0:
-            matches[expert] = match_count
+        # Verificar que el experto exista en la configuración actual
+        if expert in st.session_state.assistants_config:
+            match_count = sum(1 for keyword in keywords if keyword in message_lower)
+            if match_count > 0:
+                matches[expert] = match_count
 
-    # Devolver el experto con más coincidencias si hay alguno
+    # Si encontramos coincidencias con palabras clave, usamos esa detección
     if matches:
-        return max(matches.items(), key=lambda x: x[1])[0]
+        suggested_expert = max(matches.items(), key=lambda x: x[1])[0]
+        logging.info(f"Experto sugerido por palabras clave: {suggested_expert}")
+        return suggested_expert
+
+    # Método 2: Si no hay coincidencias claras y el mensaje es complejo, usar OpenAI
+    # Este método es opcional y se puede habilitar según necesidad
+    try:
+        # Solo usar OpenAI si el mensaje es lo suficientemente largo/complejo
+        if len(message) > 50 and "client" in st.session_state and st.session_state.client:
+            # Crear una lista de expertos disponibles con sus descripciones
+            available_experts = []
+            for key, expert in st.session_state.assistants_config.items():
+                available_experts.append(f"{key}: {expert['titulo']} - {expert['descripcion']}")
+
+            # Crear el prompt para OpenAI
+            prompt = f"""Analiza el siguiente mensaje y determina cuál de estos expertos sería el más adecuado para responderlo.
+
+Mensaje del usuario: "{message}"
+
+Expertos disponibles:
+{chr(10).join(available_experts)}
+
+Responde solo con la clave del experto más adecuado (por ejemplo, 'tutela' o 'asistente_virtual'). Si no hay un experto claramente adecuado, responde 'asistente_virtual'."""
+
+            # Obtener el modelo configurado en secrets.toml o usar uno predeterminado
+            default_model = "gpt-3.5-turbo"  # Modelo predeterminado como fallback
+
+            # Intentar obtener el modelo configurado en secrets.toml
+            configured_model = default_model
+            try:
+                if hasattr(st, "secrets") and "openai" in st.secrets and "api_model" in st.secrets["openai"]:
+                    configured_model = st.secrets["openai"]["api_model"]
+                    logging.info(f"Usando modelo configurado en secrets.toml: {configured_model}")
+                else:
+                    logging.info(f"No se encontró configuración de modelo en secrets.toml, usando modelo predeterminado: {default_model}")
+            except Exception as e:
+                logging.warning(f"Error al leer configuración de modelo: {str(e)}. Usando modelo predeterminado: {default_model}")
+                configured_model = default_model
+
+            # Llamar a la API de OpenAI con el modelo configurado
+            response = st.session_state.client.chat.completions.create(
+                model=configured_model,  # Usar el modelo configurado en secrets.toml
+                messages=[{"role": "system", "content": "Eres un asistente que ayuda a clasificar consultas para dirigirlas al experto adecuado."},
+                          {"role": "user", "content": prompt}],
+                max_tokens=50,
+                temperature=0.3
+            )
+
+            # Extraer la respuesta
+            ai_suggested_expert = response.choices[0].message.content.strip().lower()
+
+            # Verificar si la respuesta es una clave válida
+            if ai_suggested_expert in st.session_state.assistants_config:
+                logging.info(f"Experto sugerido por OpenAI: {ai_suggested_expert}")
+                return ai_suggested_expert
+            else:
+                logging.warning(f"OpenAI sugirió un experto inválido: {ai_suggested_expert}")
+                return "asistente_virtual"  # Valor predeterminado seguro
+    except Exception as e:
+        logging.error(f"Error al usar OpenAI para detectar experto: {str(e)}")
+        # En caso de error, usar el experto actual o el asistente virtual
+
+    # Si no se pudo determinar un experto, mantener el actual
     return None
 
 
@@ -2378,24 +2444,35 @@ if prompt:
         # Procesar la respuesta usando el contenido de los documentos
         if st.session_state.thread_id and "client" in st.session_state and st.session_state.client:
             try:
-                # Si se detecta un experto diferente, sugerir cambio
+                # Si se detecta un experto diferente, verificar que exista y sugerir cambio
                 if suggested_expert and suggested_expert != st.session_state.current_expert:
-                    expert_titulo = st.session_state.assistants_config[suggested_expert]["titulo"]
+                    # Verificar que el experto sugerido exista en la configuración
+                    if suggested_expert in st.session_state.assistants_config:
+                        expert_titulo = st.session_state.assistants_config[suggested_expert]["titulo"]
 
-                    st.info(f"Tu mensaje parece relacionado con '{expert_titulo}'. ¿Quieres cambiar de experto?")
+                        st.info(f"Tu mensaje parece relacionado con '{expert_titulo}'. ¿Quieres cambiar de experto?")
 
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button("Usar experto sugerido", key="use_suggested"):
-                            change_expert(suggested_expert, "Cambio automático por palabras clave")
-                            response_text = process_message(user_text, suggested_expert)
-                            if response_text:
-                                st.rerun()
-                    with col2:
-                        if st.button("Continuar con experto actual", key="keep_current"):
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            if st.button("Usar experto sugerido", key="use_suggested"):
+                                change_expert(suggested_expert, "Cambio automático por palabras clave")
+                                response_text = process_message(user_text, suggested_expert)
+                                if response_text:
+                                    st.rerun()
+                        with col2:
+                            if st.button("Continuar con experto actual", key="keep_current"):
+                                response_text = process_message(user_text, st.session_state.current_expert)
+                                if response_text:
+                                    st.rerun()
+                    else:
+                        # Si el experto sugerido no existe, procesar con el experto actual
+                        logging.warning(f"Experto sugerido '{suggested_expert}' no encontrado en la configuración")
+                        with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
                             response_text = process_message(user_text, st.session_state.current_expert)
                             if response_text:
                                 st.rerun()
+                            else:
+                                st.error(APP_IDENTITY["response_error"])
                 else:
                     # Procesar con el experto actual
                     with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
