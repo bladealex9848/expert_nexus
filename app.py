@@ -172,98 +172,43 @@ logging.basicConfig(
 # Versión de la aplicación
 APP_VERSION = APP_IDENTITY["version"]
 
-# Detectar entorno de ejecución
-def is_streamlit_cloud():
-    """
-    Detecta si la aplicación se está ejecutando en Streamlit Cloud
-    con verificación multi-indicador
-    """
-    try:
-        # Verificación directa de secrets.toml en Streamlit Cloud
-        if hasattr(st, 'secrets') and 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
-            logging.info("Detectado Streamlit Cloud por presencia de secrets")
-            return True
-
-        # Múltiples indicadores para una detección más robusta
-        indicators = [
-            os.environ.get("STREAMLIT_SHARING_MODE") is not None,
-            os.environ.get("STREAMLIT_SERVER_BASE_URL_IS_SET") is not None,
-            os.environ.get("IS_STREAMLIT_CLOUD") == "true",
-            os.path.exists("/.streamlit/config.toml"),
-            "STREAMLIT_RUNTIME" in os.environ,
-        ]
-
-        # Loguear todos los indicadores para depuración
-        logging.info(f"Indicadores de Streamlit Cloud: {indicators}")
-
-        # Si al menos dos indicadores son positivos, consideramos que es Cloud
-        is_cloud = sum(indicators) >= 2
-        logging.info(f"Detección de Streamlit Cloud por indicadores: {is_cloud}")
-        return is_cloud
-    except Exception as e:
-        logging.warning(f"Error al detectar entorno: {str(e)}")
-        return False
-
 # Configurar variables de entorno
-# Priorizar secrets de Streamlit sobre configuración local
-is_cloud = is_streamlit_cloud()
-logging.info(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+# Sistema unificado para cargar configuración desde secrets o archivo local
+logging.info("Inicializando configuración unificada para todos los entornos")
 
+# Inicializar variables con valores predeterminados
+os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
+os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
+os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+
+# Sobrescribir con secrets si están disponibles
 if hasattr(st, 'secrets'):
     try:
-        # Verificar si existen las claves necesarias en secrets
+        # Cargar clave API de OpenAI
         if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
             openai_key = st.secrets["openai"]["api_key"]
-            # Verificar que la clave no sea un placeholder
             if openai_key and not openai_key.startswith('sk-your-'):
                 os.environ["OPENAI_API_KEY"] = openai_key
                 logging.info("Clave API de OpenAI cargada desde secrets")
-            else:
-                logging.error(f"Clave API de OpenAI en secrets parece ser un placeholder: {openai_key[:10]}...")
-                os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-        else:
-            logging.error("No se encontró la clave API de OpenAI en secrets")
-            os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
 
-        # Cargar clave de Mistral
+        # Cargar clave API de Mistral
         if 'mistral' in st.secrets and 'api_key' in st.secrets['mistral']:
             os.environ["MISTRAL_API_KEY"] = st.secrets["mistral"]["api_key"]
             logging.info("Clave API de Mistral cargada desde secrets")
-        else:
-            logging.error("No se encontró la clave API de Mistral en secrets")
-            os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
 
         # Cargar ID del asistente
         if 'openai' in st.secrets and 'assistant_id' in st.secrets['openai']:
             os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
             logging.info("ID del asistente cargado desde secrets")
-        else:
-            logging.error("No se encontró el ID del asistente en secrets")
-            os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
-
-        # Mostrar estructura de secrets para depuración (sin valores sensibles)
-        if 'openai' in st.secrets:
-            logging.info(f"Claves disponibles en st.secrets['openai']: {list(st.secrets['openai'].keys())}")
-        if 'mistral' in st.secrets:
-            logging.info(f"Claves disponibles en st.secrets['mistral']: {list(st.secrets['mistral'].keys())}")
 
     except Exception as e:
-        logging.error(f"Error al cargar secrets de Streamlit: {str(e)}")
-        # Usar configuración de respaldo
-        os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-        os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
-        os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
-else:
-    # Usar configuración local
-    os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-    os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
-    os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
-    logging.info("Usando claves API desde configuración local")
+        logging.error(f"Error al cargar secrets: {str(e)}")
+        # Ya tenemos los valores predeterminados, no es necesario hacer nada más
 
 # Verificar que las claves no sean placeholders
 if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
     logging.error("La clave API de OpenAI parece ser un placeholder")
-    st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml.")
+    st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml o en assistants_config.py.")
 
 # Configuración de página Streamlit
 st.set_page_config(
@@ -1960,9 +1905,8 @@ with st.sidebar:
             APP_IDENTITY["config_warning"].format(missing_items=", ".join(missing))
         )
 
-    # Mostrar entorno
-    env_type = "Streamlit Cloud" if is_streamlit_cloud() else "Local"
-    st.info(f"Entorno detectado: {env_type}")
+    # Mostrar información del sistema
+    st.info(f"Sistema inicializado correctamente")
 
     # Selector de expertos
     st.subheader("🤖 Expertos Disponibles")
