@@ -179,6 +179,11 @@ def is_streamlit_cloud():
     con verificación multi-indicador
     """
     try:
+        # Verificación directa de secrets.toml en Streamlit Cloud
+        if hasattr(st, 'secrets') and 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
+            logging.info("Detectado Streamlit Cloud por presencia de secrets")
+            return True
+
         # Múltiples indicadores para una detección más robusta
         indicators = [
             os.environ.get("STREAMLIT_SHARING_MODE") is not None,
@@ -188,20 +193,60 @@ def is_streamlit_cloud():
             "STREAMLIT_RUNTIME" in os.environ,
         ]
 
+        # Loguear todos los indicadores para depuración
+        logging.info(f"Indicadores de Streamlit Cloud: {indicators}")
+
         # Si al menos dos indicadores son positivos, consideramos que es Cloud
-        return sum(indicators) >= 2
+        is_cloud = sum(indicators) >= 2
+        logging.info(f"Detección de Streamlit Cloud por indicadores: {is_cloud}")
+        return is_cloud
     except Exception as e:
         logging.warning(f"Error al detectar entorno: {str(e)}")
         return False
 
 # Configurar variables de entorno
 # Priorizar secrets de Streamlit sobre configuración local
+is_cloud = is_streamlit_cloud()
+logging.info(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+
 if hasattr(st, 'secrets'):
     try:
-        os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
-        os.environ["MISTRAL_API_KEY"] = st.secrets["mistral"]["api_key"]
-        os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
-        logging.info("Usando claves API desde secrets de Streamlit")
+        # Verificar si existen las claves necesarias en secrets
+        if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
+            openai_key = st.secrets["openai"]["api_key"]
+            # Verificar que la clave no sea un placeholder
+            if openai_key and not openai_key.startswith('sk-your-'):
+                os.environ["OPENAI_API_KEY"] = openai_key
+                logging.info("Clave API de OpenAI cargada desde secrets")
+            else:
+                logging.error(f"Clave API de OpenAI en secrets parece ser un placeholder: {openai_key[:10]}...")
+                os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
+        else:
+            logging.error("No se encontró la clave API de OpenAI en secrets")
+            os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
+
+        # Cargar clave de Mistral
+        if 'mistral' in st.secrets and 'api_key' in st.secrets['mistral']:
+            os.environ["MISTRAL_API_KEY"] = st.secrets["mistral"]["api_key"]
+            logging.info("Clave API de Mistral cargada desde secrets")
+        else:
+            logging.error("No se encontró la clave API de Mistral en secrets")
+            os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
+
+        # Cargar ID del asistente
+        if 'openai' in st.secrets and 'assistant_id' in st.secrets['openai']:
+            os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
+            logging.info("ID del asistente cargado desde secrets")
+        else:
+            logging.error("No se encontró el ID del asistente en secrets")
+            os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+
+        # Mostrar estructura de secrets para depuración (sin valores sensibles)
+        if 'openai' in st.secrets:
+            logging.info(f"Claves disponibles en st.secrets['openai']: {list(st.secrets['openai'].keys())}")
+        if 'mistral' in st.secrets:
+            logging.info(f"Claves disponibles en st.secrets['mistral']: {list(st.secrets['mistral'].keys())}")
+
     except Exception as e:
         logging.error(f"Error al cargar secrets de Streamlit: {str(e)}")
         # Usar configuración de respaldo
@@ -214,6 +259,11 @@ else:
     os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
     os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
     logging.info("Usando claves API desde configuración local")
+
+# Verificar que las claves no sean placeholders
+if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
+    logging.error("La clave API de OpenAI parece ser un placeholder")
+    st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml.")
 
 # Configuración de página Streamlit
 st.set_page_config(
@@ -347,17 +397,43 @@ def create_openai_client(api_key):
     y verificación de conectividad
     """
     try:
+        # Verificar que la clave API no sea un placeholder
+        if not api_key or api_key.startswith('sk-your-'):
+            error_msg = f"Clave API inválida: {api_key[:10]}..."
+            logging.error(error_msg)
+            st.error(f"No se pudo conectar a OpenAI: Clave API inválida. Por favor, configura una clave válida en secrets.toml.")
+            return None
+
+        # Mostrar información de depuración (sin exponer la clave completa)
+        logging.info(f"Intentando crear cliente OpenAI con clave: {api_key[:7]}...{api_key[-4:]}")
+
         client = OpenAI(
             api_key=api_key, default_headers={"OpenAI-Beta": "assistants=v2"}
         )
 
         # Verificar conectividad con una llamada simple
-        models = client.models.list()
-        if not models:
-            raise Exception("No se pudo obtener la lista de modelos")
+        try:
+            models = client.models.list()
+            if not models:
+                raise Exception("No se pudo obtener la lista de modelos")
 
-        logging.info("Cliente OpenAI inicializado correctamente")
-        return client
+            # Mostrar los modelos disponibles para depuración
+            model_ids = [model.id for model in models.data[:5]]
+            logging.info(f"Modelos disponibles (primeros 5): {model_ids}")
+
+            logging.info("Cliente OpenAI inicializado correctamente")
+            return client
+        except Exception as api_error:
+            error_details = str(api_error)
+            logging.error(f"Error en la llamada a la API de OpenAI: {error_details}")
+
+            # Extraer código de error para mejor diagnóstico
+            error_code = "desconocido"
+            if hasattr(api_error, 'status_code'):
+                error_code = api_error.status_code
+
+            st.error(f"No se pudo conectar a OpenAI: Error code: {error_code} - {error_details}")
+            return None
     except Exception as e:
         logging.error(f"Error inicializando cliente OpenAI: {str(e)}")
         st.error(f"No se pudo conectar a OpenAI: {str(e)}")
