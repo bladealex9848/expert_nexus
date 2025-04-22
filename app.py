@@ -177,9 +177,30 @@ APP_VERSION = APP_IDENTITY["version"]
 logging.info("Inicializando configuración unificada para todos los entornos")
 
 # Sistema unificado para cargar configuración desde secrets o valores predeterminados
-# Detectar entorno (local o cloud)
-is_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud'
-logging.info(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+# Detectar entorno (local o cloud) - Método mejorado
+is_cloud = False
+
+# Método 1: Verificar variable de entorno STREAMLIT_SHARING_MODE
+if os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud':
+    is_cloud = True
+    logging.info("Entorno Cloud detectado por STREAMLIT_SHARING_MODE")
+
+# Método 2: Verificar si estamos en un directorio típico de Streamlit Cloud
+if os.path.exists('/mount/src'):
+    is_cloud = True
+    logging.info("Entorno Cloud detectado por directorio /mount/src")
+
+# Método 3: Verificar hostname
+try:
+    import socket
+    hostname = socket.gethostname()
+    if 'streamlit' in hostname.lower():
+        is_cloud = True
+        logging.info(f"Entorno Cloud detectado por hostname: {hostname}")
+except:
+    pass
+
+logging.info(f"Entorno final detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
 
 # Inicializar con valores predeterminados (solo como fallback)
 default_openai_key = assistants_config.OPENAI_API_KEY
@@ -189,22 +210,45 @@ default_assistant_id = assistants_config.ASSISTANT_ID
 # Cargar desde secrets.toml (prioridad máxima)
 if hasattr(st, 'secrets'):
     try:
+        # Mostrar información de depuración sobre los secretos disponibles
+        if is_cloud:
+            secret_keys = list(st.secrets.keys())
+            logging.info(f"CLOUD - Claves disponibles en st.secrets: {secret_keys}")
+
+            # Verificar si hay secretos anidados
+            for key in secret_keys:
+                if isinstance(st.secrets[key], dict):
+                    nested_keys = list(st.secrets[key].keys())
+                    logging.info(f"CLOUD - Claves anidadas en st.secrets['{key}']: {nested_keys}")
+
         # 1. Cargar clave API de OpenAI (priorizar estructura plana)
         if 'OPENAI_API_KEY' in st.secrets:
             openai_key = st.secrets["OPENAI_API_KEY"]
+            # Mostrar los primeros caracteres para depuración
+            key_prefix = openai_key[:7] if len(openai_key) > 10 else "[muy corta]"
+            logging.info(f"OPENAI_API_KEY encontrada (estructura plana), comienza con: {key_prefix}...")
+
             if openai_key and not openai_key.startswith('sk-your-'):
                 os.environ["OPENAI_API_KEY"] = openai_key
                 logging.info("Clave API de OpenAI cargada desde secrets (estructura plana)")
+            else:
+                logging.error(f"OPENAI_API_KEY encontrada pero parece inválida: {key_prefix}...")
         # 1.1 Intentar estructura anidada como alternativa
         elif 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
             openai_key = st.secrets["openai"]["api_key"]
+            # Mostrar los primeros caracteres para depuración
+            key_prefix = openai_key[:7] if len(openai_key) > 10 else "[muy corta]"
+            logging.info(f"api_key encontrada en openai (estructura anidada), comienza con: {key_prefix}...")
+
             if openai_key and not openai_key.startswith('sk-your-'):
                 os.environ["OPENAI_API_KEY"] = openai_key
                 logging.info("Clave API de OpenAI cargada desde secrets (estructura anidada)")
+            else:
+                logging.error(f"api_key encontrada en openai pero parece inválida: {key_prefix}...")
         else:
             # Solo usar el valor predeterminado si no hay secreto configurado
             os.environ["OPENAI_API_KEY"] = default_openai_key
-            logging.warning("Usando valor predeterminado para OPENAI_API_KEY (no recomendado para producción)")
+            logging.warning("No se encontró OPENAI_API_KEY en secrets. Usando valor predeterminado (no recomendado para producción)")
 
         # 2. Cargar clave API de Mistral (priorizar estructura plana)
         if 'MISTRAL_API_KEY' in st.secrets:
@@ -264,31 +308,70 @@ if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
     # Mostrar información de depuración en el log
     if is_cloud:
         logging.error("ENTORNO CLOUD DETECTADO - VERIFICANDO CONFIGURACIÓN DE SECRETS")
+        logging.error(f"Valor actual de OPENAI_API_KEY: {os.environ['OPENAI_API_KEY'][:10]}...")
+
+        # Verificar si st.secrets está disponible
         if hasattr(st, 'secrets'):
-            # Verificar estructura de secrets sin mostrar valores
+            # Verificar estructura de secrets sin mostrar valores completos
             secret_keys = list(st.secrets.keys())
             logging.error(f"Claves en st.secrets: {secret_keys}")
 
-            # Verificar estructura plana
-            if 'OPENAI_API_KEY' in st.secrets:
-                key_prefix = st.secrets['OPENAI_API_KEY'][:7] if len(st.secrets['OPENAI_API_KEY']) > 10 else "[muy corta]"
-                logging.error(f"Prefijo de la clave OPENAI_API_KEY (estructura plana): {key_prefix}...")
-            else:
-                logging.error("No se encontró OPENAI_API_KEY en estructura plana")
+            # Intentar acceder directamente a los secretos y mostrar información
+            try:
+                # Verificar estructura plana
+                if 'OPENAI_API_KEY' in st.secrets:
+                    key_value = st.secrets['OPENAI_API_KEY']
+                    key_prefix = key_value[:7] if len(key_value) > 10 else "[muy corta]"
+                    key_len = len(key_value)
+                    logging.error(f"OPENAI_API_KEY (estructura plana): prefijo={key_prefix}..., longitud={key_len}")
 
-            # Verificar estructura anidada
-            if 'openai' in st.secrets:
-                openai_keys = list(st.secrets['openai'].keys())
-                logging.error(f"Claves en st.secrets['openai']: {openai_keys}")
-                if 'api_key' in openai_keys:
-                    key_prefix = st.secrets['openai']['api_key'][:7] if len(st.secrets['openai']['api_key']) > 10 else "[muy corta]"
-                    logging.error(f"Prefijo de la clave en secrets['openai']['api_key']: {key_prefix}...")
+                    # Verificar si la clave es válida
+                    if key_value.startswith('sk-') and not key_value.startswith('sk-your-'):
+                        logging.error("La clave en secrets parece válida pero no se está usando correctamente")
+                        # Intentar establecer la clave directamente
+                        os.environ["OPENAI_API_KEY"] = key_value
+                        logging.error("Se ha intentado establecer la clave directamente desde secrets")
+                else:
+                    logging.error("No se encontró OPENAI_API_KEY en estructura plana")
+
+                # Verificar estructura anidada
+                if 'openai' in st.secrets:
+                    openai_keys = list(st.secrets['openai'].keys())
+                    logging.error(f"Claves en st.secrets['openai']: {openai_keys}")
+                    if 'api_key' in openai_keys:
+                        key_value = st.secrets['openai']['api_key']
+                        key_prefix = key_value[:7] if len(key_value) > 10 else "[muy corta]"
+                        key_len = len(key_value)
+                        logging.error(f"api_key en openai: prefijo={key_prefix}..., longitud={key_len}")
+
+                        # Verificar si la clave es válida
+                        if key_value.startswith('sk-') and not key_value.startswith('sk-your-'):
+                            logging.error("La clave en secrets['openai']['api_key'] parece válida pero no se está usando correctamente")
+                            # Intentar establecer la clave directamente
+                            os.environ["OPENAI_API_KEY"] = key_value
+                            logging.error("Se ha intentado establecer la clave directamente desde secrets['openai']['api_key']")
+            except Exception as e:
+                logging.error(f"Error al acceder a los secretos: {str(e)}")
         else:
             logging.error("st.secrets no está disponible en Streamlit Cloud")
 
     # Mensaje de error diferente según el entorno
     if is_cloud:
         st.error("Error de configuración: La clave API de OpenAI no está configurada correctamente en Streamlit Cloud. Por favor, verifica los secretos en el panel de control de Streamlit.")
+        # Mostrar instrucciones detalladas
+        st.info("""
+        Para configurar los secretos en Streamlit Cloud:
+        1. Ve a https://share.streamlit.io/
+        2. Selecciona tu aplicación 'expert_nexus'
+        3. Haz clic en 'Settings' (⚙️)
+        4. En la sección 'Secrets', configura los siguientes secretos:
+           - OPENAI_API_KEY = "sk-tu-clave-real-de-openai"
+           - ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+           - OPENAI_API_MODEL = "gpt-4.1-nano"
+           - MISTRAL_API_KEY = "tu-clave-real-de-mistral"
+        5. Haz clic en 'Save'
+        6. Reinicia la aplicación
+        """)
     else:
         st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml o en assistants_config.py.")
 
