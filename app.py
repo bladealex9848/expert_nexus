@@ -181,13 +181,18 @@ os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
 os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
 os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
 
+# Detectar entorno (local o cloud)
+is_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud'
+logging.info(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+
 # Sobrescribir con secrets si están disponibles
 if hasattr(st, 'secrets'):
     try:
         # Cargar clave API de OpenAI
         if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
             openai_key = st.secrets["openai"]["api_key"]
-            if openai_key and not openai_key.startswith('sk-your-'):
+            # En Cloud, siempre usar el valor de secrets sin verificar el formato
+            if is_cloud or (openai_key and not openai_key.startswith('sk-your-')):
                 os.environ["OPENAI_API_KEY"] = openai_key
                 logging.info("Clave API de OpenAI cargada desde secrets")
 
@@ -201,6 +206,11 @@ if hasattr(st, 'secrets'):
             os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
             logging.info("ID del asistente cargado desde secrets")
 
+        # Cargar modelo de API (si está definido)
+        if 'openai' in st.secrets and 'api_model' in st.secrets['openai']:
+            os.environ["OPENAI_API_MODEL"] = st.secrets["openai"]["api_model"]
+            logging.info(f"Modelo API cargado desde secrets: {os.environ['OPENAI_API_MODEL']}")
+
     except Exception as e:
         logging.error(f"Error al cargar secrets: {str(e)}")
         # Ya tenemos los valores predeterminados, no es necesario hacer nada más
@@ -208,7 +218,12 @@ if hasattr(st, 'secrets'):
 # Verificar que las claves no sean placeholders
 if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
     logging.error("La clave API de OpenAI parece ser un placeholder")
-    st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml o en assistants_config.py.")
+
+    # Mensaje de error diferente según el entorno
+    if is_cloud:
+        st.error("Error de configuración: La clave API de OpenAI no está configurada correctamente en Streamlit Cloud. Por favor, verifica los secretos en el panel de control de Streamlit.")
+    else:
+        st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml o en assistants_config.py.")
 
 # Configuración de página Streamlit
 st.set_page_config(
@@ -344,9 +359,14 @@ def create_openai_client(api_key):
     try:
         # Verificar que la clave API no sea un placeholder
         if not api_key or api_key.startswith('sk-your-'):
-            error_msg = f"Clave API inválida: {api_key[:10]}..."
+            error_msg = f"Clave API inválida: {api_key[:10] if len(api_key) > 10 else api_key}..."
             logging.error(error_msg)
-            st.error(f"No se pudo conectar a OpenAI: Clave API inválida. Por favor, configura una clave válida en secrets.toml.")
+
+            # Mensaje de error diferente según el entorno
+            if is_cloud:
+                st.error("No se pudo conectar a OpenAI: La clave API no está configurada correctamente en Streamlit Cloud. Por favor, verifica los secretos en el panel de control de Streamlit.")
+            else:
+                st.error(f"No se pudo conectar a OpenAI: Clave API inválida. Por favor, configura una clave válida en secrets.toml.")
             return None
 
         # Mostrar información de depuración (sin exponer la clave completa)
@@ -2341,6 +2361,41 @@ def process_message(message, expert_key):
                 return new_message["content"]
     else:
         logging.error(f"La ejecución falló con estado: {run.status}")
+
+        # Intentar usar modelo de respaldo si está configurado
+        backup_model = os.environ.get("OPENAI_API_MODEL", "")
+        if backup_model and "gpt-4.1-nano" in backup_model:
+            try:
+                logging.info(f"Intentando usar modelo de respaldo: {backup_model}")
+
+                # Crear mensaje para el modelo de respaldo
+                backup_messages = [
+                    {"role": "system", "content": f"Eres un asistente virtual experto en {st.session_state.assistants_config[expert_key]['titulo']}. {st.session_state.assistants_config[expert_key]['descripcion']}"}
+                ]
+
+                # Añadir contexto de la conversación (hasta 5 mensajes previos)
+                prev_messages = [m for m in st.session_state.messages if m.get("expert") == expert_key][-5:]
+                for prev_msg in prev_messages:
+                    backup_messages.append({"role": prev_msg["role"], "content": prev_msg["content"]})
+
+                # Añadir el mensaje actual
+                backup_messages.append({"role": "user", "content": full_message})
+
+                # Llamar al modelo de respaldo
+                backup_response = st.session_state.client.chat.completions.create(
+                    model=backup_model,
+                    messages=backup_messages,
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+
+                if backup_response and backup_response.choices and len(backup_response.choices) > 0:
+                    backup_text = backup_response.choices[0].message.content
+                    logging.info(f"Respuesta obtenida del modelo de respaldo ({len(backup_text)} caracteres)")
+                    return f"[Respuesta de respaldo usando {backup_model}]\n\n{backup_text}"
+            except Exception as backup_error:
+                logging.error(f"Error usando modelo de respaldo: {str(backup_error)}")
+
         return f"Lo siento, no pude procesar tu solicitud. Estado: {run.status}"
 
     return "Lo siento, no pude procesar tu solicitud en este momento."
