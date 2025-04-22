@@ -172,10 +172,48 @@ logging.basicConfig(
 # Versión de la aplicación
 APP_VERSION = APP_IDENTITY["version"]
 
+# Detectar entorno de ejecución
+def is_streamlit_cloud():
+    """
+    Detecta si la aplicación se está ejecutando en Streamlit Cloud
+    con verificación multi-indicador
+    """
+    try:
+        # Múltiples indicadores para una detección más robusta
+        indicators = [
+            os.environ.get("STREAMLIT_SHARING_MODE") is not None,
+            os.environ.get("STREAMLIT_SERVER_BASE_URL_IS_SET") is not None,
+            os.environ.get("IS_STREAMLIT_CLOUD") == "true",
+            os.path.exists("/.streamlit/config.toml"),
+            "STREAMLIT_RUNTIME" in os.environ,
+        ]
+
+        # Si al menos dos indicadores son positivos, consideramos que es Cloud
+        return sum(indicators) >= 2
+    except Exception as e:
+        logging.warning(f"Error al detectar entorno: {str(e)}")
+        return False
+
 # Configurar variables de entorno
-os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
-os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+# Priorizar secrets de Streamlit sobre configuración local
+if hasattr(st, 'secrets'):
+    try:
+        os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
+        os.environ["MISTRAL_API_KEY"] = st.secrets["mistral"]["api_key"]
+        os.environ["ASSISTANT_ID"] = st.secrets["openai"]["assistant_id"]
+        logging.info("Usando claves API desde secrets de Streamlit")
+    except Exception as e:
+        logging.error(f"Error al cargar secrets de Streamlit: {str(e)}")
+        # Usar configuración de respaldo
+        os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
+        os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
+        os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+else:
+    # Usar configuración local
+    os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
+    os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
+    os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+    logging.info("Usando claves API desde configuración local")
 
 # Configuración de página Streamlit
 st.set_page_config(
@@ -298,27 +336,7 @@ def rerun_app():
             logging.error(f"Reinicio con JavaScript falló: {str(e3)}")
 
 
-# Detectar entorno de ejecución
-def is_streamlit_cloud():
-    """
-    Detecta si la aplicación se está ejecutando en Streamlit Cloud
-    con verificación multi-indicador
-    """
-    try:
-        # Múltiples indicadores para una detección más robusta
-        indicators = [
-            os.environ.get("STREAMLIT_SHARING_MODE") is not None,
-            os.environ.get("STREAMLIT_SERVER_BASE_URL_IS_SET") is not None,
-            os.environ.get("IS_STREAMLIT_CLOUD") == "true",
-            os.path.exists("/.streamlit/config.toml"),
-            "STREAMLIT_RUNTIME" in os.environ,
-        ]
 
-        # Si al menos dos indicadores son positivos, consideramos que es Cloud
-        return sum(indicators) >= 2
-    except Exception as e:
-        logging.warning(f"Error al detectar entorno: {str(e)}")
-        return False
 
 
 # Crear cliente OpenAI para Assistants
