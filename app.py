@@ -1432,13 +1432,24 @@ def manage_document_context():
 def verify_document_context():
     """
     Verifica que los documentos en el contexto estén correctamente procesados
-    y disponibles para el asistente.
+    y disponibles para el asistente. También detecta y permite eliminar archivos temporales.
     """
     if "document_contents" in st.session_state and st.session_state.document_contents:
         st.write("### Verificación de documentos en contexto")
 
+        # Detectar archivos temporales (patrones comunes)
+        temp_file_patterns = ["img-", "temp", "~$", ".tmp"]
+        potential_temp_files = []
+
         # Verificar cada documento
         for doc_name, doc_content in st.session_state.document_contents.items():
+            # Verificar si parece un archivo temporal
+            is_temp_file = any(pattern in doc_name.lower() for pattern in temp_file_patterns)
+
+            if is_temp_file:
+                potential_temp_files.append(doc_name)
+                st.warning(f"⚠️ {doc_name}: Posible archivo temporal")
+
             if isinstance(doc_content, dict) and "text" in doc_content:
                 text_length = len(doc_content["text"])
                 format_type = doc_content.get("format", "desconocido")
@@ -1454,6 +1465,36 @@ def verify_document_context():
                 st.error(f"❌ {doc_name}: Error - {doc_content.get('error', 'Error desconocido')}")
             else:
                 st.warning(f"⚠️ {doc_name}: Formato no reconocido")
+
+        # Opción para eliminar archivos temporales si se detectaron
+        if potential_temp_files:
+            st.write("### Archivos temporales detectados")
+            st.write("Se detectaron posibles archivos temporales que podrían no ser relevantes para el contexto:")
+
+            # Crear checkboxes para seleccionar archivos a eliminar
+            files_to_remove = {}
+            for temp_file in potential_temp_files:
+                files_to_remove[temp_file] = st.checkbox(
+                    f"Eliminar {temp_file}", value=True, key=f"remove_temp_{temp_file}"
+                )
+
+            # Botón para eliminar archivos temporales
+            if st.button("Eliminar archivos temporales seleccionados"):
+                removed_count = 0
+                for file_name, should_remove in files_to_remove.items():
+                    if should_remove:
+                        if file_name in st.session_state.document_contents:
+                            del st.session_state.document_contents[file_name]
+                        if file_name in st.session_state.uploaded_files:
+                            st.session_state.uploaded_files.remove(file_name)
+                        removed_count += 1
+
+                if removed_count > 0:
+                    st.success(f"Se eliminaron {removed_count} archivos temporales del contexto.")
+                    # Usar sistema seguro de reinicio
+                    rerun_app()
+                else:
+                    st.info("No se seleccionaron archivos para eliminar.")
 
         # Botón para refrescar documentos
         if st.button("Refrescar documentos en contexto"):
@@ -2213,7 +2254,17 @@ def process_message(message, expert_key):
     if "document_contents" in st.session_state and st.session_state.document_contents:
         document_context = "\n\n### Contenido de documentos adjuntos:\n\n"
 
+        # Filtrar archivos temporales
+        temp_file_patterns = ["img-", "temp", "~$", ".tmp"]
+        filtered_docs = {}
         for doc_name, doc_content in st.session_state.document_contents.items():
+            # Verificar si parece un archivo temporal
+            is_temp_file = any(pattern in doc_name.lower() for pattern in temp_file_patterns)
+            if not is_temp_file:
+                filtered_docs[doc_name] = doc_content
+
+        # Usar los documentos filtrados
+        for doc_name, doc_content in filtered_docs.items():
             # Extraer el texto del documento
             if isinstance(doc_content, dict) and "text" in doc_content:
                 # Limitar el contenido para no exceder el contexto
@@ -2225,7 +2276,7 @@ def process_message(message, expert_key):
         # Añadir el contexto de documentos al mensaje si hay contenido real
         if len(document_context) > 60:  # Más que solo el encabezado
             full_message = f"{message}\n\n{document_context}"
-            logging.info(f"Mensaje enriquecido con {len(st.session_state.document_contents)} documentos. Tamaño total: {len(full_message)} caracteres")
+            logging.info(f"Mensaje enriquecido con {len(filtered_docs)} documentos (filtrados de {len(st.session_state.document_contents)}). Tamaño total: {len(full_message)} caracteres")
 
     # Añadir el mensaje a la conversación
     st.session_state.client.beta.threads.messages.create(
