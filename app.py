@@ -1173,17 +1173,22 @@ def process_document_with_mistral_ocr(api_key, file_bytes, file_type, file_name)
                 # Para archivos de texto, extraer contenido directamente
                 try:
                     # Intentar leer con diferentes codificaciones
+                    text_content = None
                     try:
                         text_content = file_bytes.decode("utf-8")
-                        return {"text": text_content, "format": "text"}
                     except UnicodeDecodeError:
                         # Intentar con otras codificaciones comunes
                         for encoding in ["latin-1", "cp1252", "iso-8859-1"]:
                             try:
                                 text_content = file_bytes.decode(encoding)
-                                return {"text": text_content, "format": "text"}
+                                break
                             except UnicodeDecodeError:
                                 continue
+
+                    # Si pudimos decodificar el texto, devolverlo
+                    if text_content:
+                        logging.info(f"Archivo de texto {file_name} decodificado correctamente")
+                        return {"text": text_content, "format": "text"}
 
                     # Si llegamos aquí, no pudimos decodificar el texto
                     # Intentar enviar como documento plano
@@ -2374,9 +2379,23 @@ if prompt:
     # Generar un mensaje automático si solo hay archivos sin texto
     if not user_text and user_files:
         file_names = [f.name for f in user_files]
+
+        # Verificar si hay contenido de archivos de texto para incluirlo en el mensaje
+        text_file_contents = ""
+        for file_name, content in current_doc_contents.items():
+            if file_name.lower().endswith('.txt') and 'text' in content:
+                text_file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    text_file_contents += "\n[Contenido truncado por longitud...]\n"
+
+        # Mensaje base
         user_text = APP_IDENTITY["file_upload_default_message"].format(
             files=", ".join(file_names)
         )
+
+        # Añadir contenido de archivos de texto si existe
+        if text_file_contents:
+            user_text += text_file_contents
 
     # Si no hay ni texto ni archivos, no hacemos nada
     if not user_text and not user_files:
