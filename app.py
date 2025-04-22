@@ -1427,6 +1427,43 @@ def manage_document_context():
         st.info("No hay documentos cargados en el contexto actual.")
 
 
+# Función para verificar el contexto de documentos
+@handle_error(max_retries=0)
+def verify_document_context():
+    """
+    Verifica que los documentos en el contexto estén correctamente procesados
+    y disponibles para el asistente.
+    """
+    if "document_contents" in st.session_state and st.session_state.document_contents:
+        st.write("### Verificación de documentos en contexto")
+
+        # Verificar cada documento
+        for doc_name, doc_content in st.session_state.document_contents.items():
+            if isinstance(doc_content, dict) and "text" in doc_content:
+                text_length = len(doc_content["text"])
+                format_type = doc_content.get("format", "desconocido")
+
+                # Mostrar estado con color según el tamaño del texto
+                if text_length > 1000:
+                    st.success(f"✅ {doc_name}: {text_length} caracteres, formato: {format_type}")
+                elif text_length > 0:
+                    st.warning(f"⚠️ {doc_name}: Solo {text_length} caracteres, formato: {format_type}")
+                else:
+                    st.error(f"❌ {doc_name}: No se extrajo texto (0 caracteres)")
+            elif isinstance(doc_content, dict) and "error" in doc_content:
+                st.error(f"❌ {doc_name}: Error - {doc_content.get('error', 'Error desconocido')}")
+            else:
+                st.warning(f"⚠️ {doc_name}: Formato no reconocido")
+
+        # Botón para refrescar documentos
+        if st.button("Refrescar documentos en contexto"):
+            st.success("Contexto de documentos actualizado")
+            # Usar sistema seguro de reinicio
+            rerun_app()
+    else:
+        st.info("No hay documentos en el contexto actual.")
+
+
 # Función para inicializar un thread con OpenAI Assistants
 @handle_error(max_retries=1)
 def initialize_thread(client):
@@ -2020,6 +2057,10 @@ with st.sidebar:
     st.subheader("📄 Gestión de Documentos")
     manage_document_context()
 
+    # Verificación de documentos en contexto
+    st.subheader("🔍 Verificación de Documentos")
+    verify_document_context()
+
     # Botón para limpiar la sesión actual
     if st.button(
         "🧹 Limpiar sesión actual",
@@ -2168,7 +2209,7 @@ def process_message(message, expert_key):
     # Enriquecer el mensaje con el contenido de los documentos
     full_message = message
 
-    # Verificar si hay documentos en la sesión
+    # SIEMPRE verificar si hay documentos en la sesión
     if "document_contents" in st.session_state and st.session_state.document_contents:
         document_context = "\n\n### Contenido de documentos adjuntos:\n\n"
 
