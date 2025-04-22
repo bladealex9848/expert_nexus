@@ -1890,7 +1890,7 @@ with st.sidebar:
 
         # Botón para confirmar el cambio de experto
         if st.button("Cambiar a este experto", use_container_width=True):
-            if change_expert(selected_expert):
+            if expert_selection.change_expert(selected_expert):
                 st.success(f"Experto cambiado a: {expert_options[selected_expert]}")
                 st.rerun()
     else:
@@ -2362,6 +2362,45 @@ if prompt:
         if st.session_state.thread_id and "client" in st.session_state and st.session_state.client:
             try:
                 # Si se detecta un experto diferente, verificar que exista y sugerir cambio
+                # Verificar si hay una selección pendiente con una elección hecha
+                if "expert_selection_state" in st.session_state and st.session_state.expert_selection_state["pending"] and st.session_state.expert_selection_state["choice"] is not None:
+                    # Guardar la elección y el mensaje para usarlos después
+                    choice = st.session_state.expert_selection_state["choice"]
+                    message = st.session_state.expert_selection_state["message"]
+                    suggested_expert_key = st.session_state.expert_selection_state["suggested_expert"]
+
+                    # Procesar según la elección
+                    if choice == "suggested":
+                        # Cambiar al experto sugerido
+                        success = expert_selection.change_expert(suggested_expert_key, "Cambio automático por palabras clave")
+                        if success:
+                            # Procesar el mensaje con el experto sugerido
+                            with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[suggested_expert_key]['titulo']}..."):
+                                response_text = process_message(message, suggested_expert_key)
+                                if response_text:
+                                    # Marcar como procesado
+                                    st.session_state.expert_selection_state["processed"] = True
+                                    st.rerun()
+                                else:
+                                    st.error(APP_IDENTITY["response_error"])
+                        else:
+                            st.error(f"No se pudo cambiar al experto sugerido. Continuando con el experto actual.")
+                            # Reiniciar el estado para evitar bucles
+                            expert_selection.reset_expert_selection_state()
+                    elif choice == "current":
+                        # Continuar con el experto actual
+                        with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
+                            response_text = process_message(message, st.session_state.current_expert)
+                            if response_text:
+                                # Marcar como procesado
+                                st.session_state.expert_selection_state["processed"] = True
+                                st.rerun()
+                            else:
+                                st.error(APP_IDENTITY["response_error"])
+
+                    # Detener la ejecución para evitar procesar el mensaje dos veces
+                    st.stop()
+
                 # Usar el módulo expert_selection para manejar la selección de expertos
                 continue_normal_flow, response_text = expert_selection.handle_expert_selection(user_text, suggested_expert, process_message)
 
