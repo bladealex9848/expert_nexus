@@ -1955,9 +1955,16 @@ with st.sidebar:
     # 1. Intentar obtener de variables de entorno
     openai_api_key = os.environ.get("OPENAI_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml
-    if not openai_api_key and hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-        openai_api_key = st.secrets["OPENAI_API_KEY"]
+    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
+    if not openai_api_key and hasattr(st, "secrets"):
+        # Intentar estructura plana
+        if "OPENAI_API_KEY" in st.secrets:
+            openai_api_key = st.secrets["OPENAI_API_KEY"]
+            logging.info("Clave API de OpenAI cargada desde secrets (estructura plana)")
+        # Intentar estructura anidada
+        elif "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+            openai_api_key = st.secrets["openai"]["api_key"]
+            logging.info("Clave API de OpenAI cargada desde secrets (estructura anidada)")
 
     # 3. Solicitar al usuario
     if not openai_api_key:
@@ -1970,13 +1977,16 @@ with st.sidebar:
     # 1. Intentar obtener de variables de entorno
     mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml
-    if (
-        not mistral_api_key
-        and hasattr(st, "secrets")
-        and "MISTRAL_API_KEY" in st.secrets
-    ):
-        mistral_api_key = st.secrets["MISTRAL_API_KEY"]
+    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
+    if not mistral_api_key and hasattr(st, "secrets"):
+        # Intentar estructura plana
+        if "MISTRAL_API_KEY" in st.secrets:
+            mistral_api_key = st.secrets["MISTRAL_API_KEY"]
+            logging.info("Clave API de Mistral cargada desde secrets (estructura plana)")
+        # Intentar estructura anidada
+        elif "mistral" in st.secrets and "api_key" in st.secrets["mistral"]:
+            mistral_api_key = st.secrets["mistral"]["api_key"]
+            logging.info("Clave API de Mistral cargada desde secrets (estructura anidada)")
 
     # 3. Solicitar al usuario
     if not mistral_api_key:
@@ -1991,9 +2001,16 @@ with st.sidebar:
     # 1. Intentar obtener de variables de entorno
     assistant_id = os.environ.get("ASSISTANT_ID")
 
-    # 2. Intentar obtener de secrets.toml
-    if not assistant_id and hasattr(st, "secrets") and "ASSISTANT_ID" in st.secrets:
-        assistant_id = st.secrets["ASSISTANT_ID"]
+    # 2. Intentar obtener de secrets.toml (estructura plana o anidada)
+    if not assistant_id and hasattr(st, "secrets"):
+        # Intentar estructura plana
+        if "ASSISTANT_ID" in st.secrets:
+            assistant_id = st.secrets["ASSISTANT_ID"]
+            logging.info("ID del asistente cargado desde secrets (estructura plana)")
+        # Intentar estructura anidada
+        elif "openai" in st.secrets and "assistant_id" in st.secrets["openai"]:
+            assistant_id = st.secrets["openai"]["assistant_id"]
+            logging.info("ID del asistente cargado desde secrets (estructura anidada)")
 
     # Verificar configuración
     if openai_api_key and mistral_api_key:
