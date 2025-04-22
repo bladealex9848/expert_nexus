@@ -2450,19 +2450,56 @@ if prompt:
                     if suggested_expert in st.session_state.assistants_config:
                         expert_titulo = st.session_state.assistants_config[suggested_expert]["titulo"]
 
-                        st.info(f"Tu mensaje parece relacionado con '{expert_titulo}'. ¿Quieres cambiar de experto?")
+                        # Inicializar variables de estado para el manejo de la selección de experto
+                        if "expert_selection_pending" not in st.session_state:
+                            st.session_state.expert_selection_pending = False
+                            st.session_state.pending_message = ""
+                            st.session_state.suggested_expert_id = ""
 
-                        col1, col2 = st.columns([1, 1])
-                        with col1:
-                            if st.button("Usar experto sugerido", key="use_suggested"):
-                                change_expert(suggested_expert, "Cambio automático por palabras clave")
-                                response_text = process_message(user_text, suggested_expert)
-                                if response_text:
+                        # Si ya hay una selección pendiente, procesar según la elección
+                        if st.session_state.expert_selection_pending and st.session_state.pending_message == user_text:
+                            if "expert_choice" in st.session_state:
+                                if st.session_state.expert_choice == "suggested":
+                                    # Usar el experto sugerido
+                                    with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.suggested_expert_id]['titulo']}..."):
+                                        change_expert(st.session_state.suggested_expert_id, "Cambio automático por palabras clave")
+                                        response_text = process_message(user_text, st.session_state.suggested_expert_id)
+                                        # Limpiar el estado de selección
+                                        st.session_state.expert_selection_pending = False
+                                        st.session_state.pending_message = ""
+                                        st.session_state.suggested_expert_id = ""
+                                        st.session_state.pop("expert_choice", None)
+                                        if response_text:
+                                            st.rerun()
+                                elif st.session_state.expert_choice == "current":
+                                    # Continuar con el experto actual
+                                    with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
+                                        response_text = process_message(user_text, st.session_state.current_expert)
+                                        # Limpiar el estado de selección
+                                        st.session_state.expert_selection_pending = False
+                                        st.session_state.pending_message = ""
+                                        st.session_state.suggested_expert_id = ""
+                                        st.session_state.pop("expert_choice", None)
+                                        if response_text:
+                                            st.rerun()
+                        else:
+                            # Mostrar opciones de selección de experto
+                            st.info(f"Tu mensaje parece relacionado con '{expert_titulo}'. ¿Quieres cambiar de experto?")
+
+                            # Guardar información para la próxima ejecución
+                            st.session_state.expert_selection_pending = True
+                            st.session_state.pending_message = user_text
+                            st.session_state.suggested_expert_id = suggested_expert
+
+                            # Mostrar botones de selección
+                            col1, col2 = st.columns([1, 1])
+                            with col1:
+                                if st.button("Usar experto sugerido", key="use_suggested"):
+                                    st.session_state.expert_choice = "suggested"
                                     st.rerun()
-                        with col2:
-                            if st.button("Continuar con experto actual", key="keep_current"):
-                                response_text = process_message(user_text, st.session_state.current_expert)
-                                if response_text:
+                            with col2:
+                                if st.button("Continuar con experto actual", key="keep_current"):
+                                    st.session_state.expert_choice = "current"
                                     st.rerun()
                     else:
                         # Si el experto sugerido no existe, procesar con el experto actual
