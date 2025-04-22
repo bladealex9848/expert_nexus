@@ -2165,11 +2165,32 @@ def process_message(message, expert_key):
     # Obtener el ID del asistente del expert_key
     assistant_id = st.session_state.assistants_config[expert_key]["id"]
 
+    # Enriquecer el mensaje con el contenido de los documentos
+    full_message = message
+
+    # Verificar si hay documentos en la sesión
+    if "document_contents" in st.session_state and st.session_state.document_contents:
+        document_context = "\n\n### Contenido de documentos adjuntos:\n\n"
+
+        for doc_name, doc_content in st.session_state.document_contents.items():
+            # Extraer el texto del documento
+            if isinstance(doc_content, dict) and "text" in doc_content:
+                # Limitar el contenido para no exceder el contexto
+                doc_text = doc_content["text"][:10000] + "..." if len(doc_content["text"]) > 10000 else doc_content["text"]
+                document_context += f"-- Documento: {doc_name} --\n{doc_text}\n\n"
+            elif isinstance(doc_content, dict) and "error" in doc_content:
+                document_context += f"-- Documento: {doc_name} -- (Error: {doc_content.get('error', 'Error desconocido')})\n\n"
+
+        # Añadir el contexto de documentos al mensaje si hay contenido real
+        if len(document_context) > 60:  # Más que solo el encabezado
+            full_message = f"{message}\n\n{document_context}"
+            logging.info(f"Mensaje enriquecido con {len(st.session_state.document_contents)} documentos. Tamaño total: {len(full_message)} caracteres")
+
     # Añadir el mensaje a la conversación
     st.session_state.client.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
-        content=message
+        content=full_message
     )
 
     # Ejecutar el asistente con el thread actual
