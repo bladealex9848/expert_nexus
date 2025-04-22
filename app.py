@@ -29,6 +29,9 @@ except ImportError:
     import assistants_config
     print("Usando configuración predeterminada de asistentes")
 
+# Importar módulo de selección de expertos
+import expert_selection
+
 # ==============================================
 # APPLICATION IDENTITY DICTIONARY
 # ==============================================
@@ -76,17 +79,19 @@ APP_IDENTITY = {
     """,
     # User instructions
     "usage_instructions": """
-    1. **Consulta inicial**: Escribe tu pregunta en el chat. El sistema seleccionará automáticamente el experto más adecuado o usará el experto actual.
+    1. **Consulta inicial**: Escribe tu pregunta en el chat. El sistema usará el experto actual para responder.
 
-    2. **Cambio de experto**: Si deseas cambiar manualmente de experto, utiliza el selector en la barra lateral y haz clic en "Cambiar a este experto".
+    2. **Cambio de experto**: Si deseas cambiar de experto, utiliza el selector en la barra lateral y haz clic en "Cambiar a este experto".
 
-    3. **Sugerencias automáticas**: Cuando tu consulta parezca más adecuada para otro experto, el sistema te sugerirá cambiar automáticamente.
+    3. **Persistencia del chat**: Al cambiar de experto, el chat siempre se mantiene para preservar el contexto completo de la conversación.
 
-    4. **Historial de cambios**: Puedes ver un registro cronológico de los expertos utilizados durante la conversación en la barra lateral.
+    4. **Archivos adjuntos**: Puedes elegir si deseas mantener o no los archivos adjuntos al cambiar de experto.
 
-    5. **Nueva conversación**: Para comenzar desde cero, haz clic en "Nueva Conversación" en la barra lateral.
+    5. **Historial de cambios**: Puedes ver un registro cronológico de los expertos utilizados durante la conversación en la barra lateral.
 
-    6. **Documentos adjuntos**: Puedes subir documentos para que los expertos los analicen durante la conversación.
+    6. **Nueva conversación**: Para comenzar desde cero, haz clic en "Nueva Conversación" en la barra lateral.
+
+    7. **Documentos adjuntos**: Puedes subir documentos para que los expertos los analicen durante la conversación.
     """,
     # Document processing information
     "document_processing_info": """
@@ -102,8 +107,8 @@ APP_IDENTITY = {
     **Formatos soportados**: PDF (.pdf), Texto (.txt), Imágenes (.jpg, .jpeg, .png). Otros formatos no serán procesados.
     """,
     # Texto de la interfaz de usuario
-    "chat_placeholder": "¿En qué puedo ayudarte hoy? Puedo cambiar automáticamente al experto más adecuado para tu consulta.",
-    "file_upload_default_message": "He cargado el documento '{files}' para análisis. Puedo asignarlo al experto más adecuado o procesarlo con el experto actual.",
+    "chat_placeholder": "¿En qué puedo ayudarte hoy? Puedes cambiar manualmente de experto en la barra lateral.",
+    "file_upload_default_message": "He cargado el documento '{files}' para análisis. El experto actual lo procesará para proporcionar respuestas más precisas.",
     "badges": """
     ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fexpertnexus.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
     """,
@@ -113,7 +118,6 @@ APP_IDENTITY = {
 
     Soy tu sistema avanzado de asistentes especializados que permite acceder a múltiples dominios de conocimiento a través de una interfaz unificada.
 
-    * Puedo cambiar automáticamente entre diferentes expertos según tu consulta
     * Mantengo el contexto completo de la conversación entre cambios de experto
     * Te permito seleccionar manualmente el especialista que deseas consultar
     * Muestro qué experto está respondiendo en cada momento
@@ -169,9 +173,237 @@ logging.basicConfig(
 APP_VERSION = APP_IDENTITY["version"]
 
 # Configurar variables de entorno
-os.environ["OPENAI_API_KEY"] = assistants_config.OPENAI_API_KEY
-os.environ["MISTRAL_API_KEY"] = assistants_config.MISTRAL_API_KEY
-os.environ["ASSISTANT_ID"] = assistants_config.ASSISTANT_ID
+# Sistema unificado para cargar configuración desde secrets o archivo local
+logging.info("Inicializando configuración unificada para todos los entornos")
+
+# Sistema unificado para cargar configuración desde secrets o valores predeterminados
+# Detectar entorno (local o cloud) - Método mejorado
+is_cloud = False
+
+# Método 1: Verificar variable de entorno STREAMLIT_SHARING_MODE
+if os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud':
+    is_cloud = True
+    logging.info("Entorno Cloud detectado por STREAMLIT_SHARING_MODE")
+
+# Método 2: Verificar si estamos en un directorio típico de Streamlit Cloud
+if os.path.exists('/mount/src'):
+    is_cloud = True
+    logging.info("Entorno Cloud detectado por directorio /mount/src")
+
+# Método 3: Verificar hostname
+try:
+    import socket
+    hostname = socket.gethostname()
+    if 'streamlit' in hostname.lower():
+        is_cloud = True
+        logging.info(f"Entorno Cloud detectado por hostname: {hostname}")
+except:
+    pass
+
+logging.info(f"Entorno final detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+
+# Inicializar con valores predeterminados (solo como fallback)
+default_openai_key = assistants_config.OPENAI_API_KEY
+default_mistral_key = assistants_config.MISTRAL_API_KEY
+default_assistant_id = assistants_config.ASSISTANT_ID
+
+# FORZAR DEPURACIÓN PARA STREAMLIT CLOUD
+print("====================== INICIO DEPURACIÓN STREAMLIT CLOUD =======================")
+print(f"Entorno detectado: {'Streamlit Cloud' if is_cloud else 'Local'}")
+print(f"Directorio actual: {os.getcwd()}")
+print(f"Directorio /mount/src existe: {os.path.exists('/mount/src')}")
+
+# Verificar si st.secrets está disponible
+if hasattr(st, 'secrets'):
+    print("st.secrets está disponible")
+    # Verificar estructura de secrets sin mostrar valores completos
+    secret_keys = list(st.secrets.keys())
+    print(f"Claves en st.secrets: {secret_keys}")
+
+    # Verificar estructura plana
+    if 'OPENAI_API_KEY' in st.secrets:
+        key_value = st.secrets['OPENAI_API_KEY']
+        key_prefix = key_value[:7] if len(key_value) > 10 else "[muy corta]"
+        key_len = len(key_value)
+        print(f"OPENAI_API_KEY (estructura plana): prefijo={key_prefix}..., longitud={key_len}")
+    else:
+        print("No se encontró OPENAI_API_KEY en estructura plana")
+
+    # Verificar estructura anidada
+    if 'openai' in st.secrets:
+        openai_keys = list(st.secrets['openai'].keys())
+        print(f"Claves en st.secrets['openai']: {openai_keys}")
+        if 'api_key' in openai_keys:
+            key_value = st.secrets['openai']['api_key']
+            key_prefix = key_value[:7] if len(key_value) > 10 else "[muy corta]"
+            key_len = len(key_value)
+            print(f"api_key en openai: prefijo={key_prefix}..., longitud={key_len}")
+        else:
+            print("No se encontró api_key en st.secrets['openai']")
+else:
+    print("st.secrets NO está disponible")
+
+print("====================== FIN DEPURACIÓN STREAMLIT CLOUD =======================")
+
+# SOLUCIÓN DIRECTA PARA STREAMLIT CLOUD
+# Forzar la carga de secretos independientemente del entorno
+if hasattr(st, 'secrets'):
+    try:
+        # FORZAR CARGA DE SECRETOS PARA STREAMLIT CLOUD
+        # Prioridad 1: Estructura plana (preferida)
+        if 'OPENAI_API_KEY' in st.secrets:
+            openai_key = st.secrets["OPENAI_API_KEY"]
+            # Verificar si la clave es válida (comienza con sk- pero no es el placeholder)
+            if openai_key and openai_key.startswith('sk-') and not openai_key.startswith('sk-your-'):
+                # FORZAR la clave directamente en el entorno
+                os.environ["OPENAI_API_KEY"] = openai_key
+                print(f"FORZADO: Clave API de OpenAI cargada desde estructura plana, comienza con: {openai_key[:7]}...")
+                logging.info(f"FORZADO: Clave API de OpenAI cargada desde estructura plana, comienza con: {openai_key[:7]}...")
+
+        # Prioridad 2: Estructura anidada
+        elif 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
+            openai_key = st.secrets["openai"]["api_key"]
+            # Verificar si la clave es válida (comienza con sk- pero no es el placeholder)
+            if openai_key and openai_key.startswith('sk-') and not openai_key.startswith('sk-your-'):
+                # FORZAR la clave directamente en el entorno
+                os.environ["OPENAI_API_KEY"] = openai_key
+                print(f"FORZADO: Clave API de OpenAI cargada desde estructura anidada, comienza con: {openai_key[:7]}...")
+                logging.info(f"FORZADO: Clave API de OpenAI cargada desde estructura anidada, comienza con: {openai_key[:7]}...")
+
+        # Si no se encontró ninguna clave válida, usar el valor predeterminado
+        if not os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY").startswith('sk-your-'):
+            print("ADVERTENCIA: No se encontró una clave API de OpenAI válida en secrets")
+            logging.warning("No se encontró una clave API de OpenAI válida en secrets")
+            os.environ["OPENAI_API_KEY"] = default_openai_key
+
+        # FORZAR CARGA DE MISTRAL API KEY
+        # Prioridad 1: Estructura plana (preferida)
+        if 'MISTRAL_API_KEY' in st.secrets:
+            mistral_key = st.secrets["MISTRAL_API_KEY"]
+            if mistral_key and not mistral_key.startswith('your-'):
+                os.environ["MISTRAL_API_KEY"] = mistral_key
+                print(f"FORZADO: Clave API de Mistral cargada desde estructura plana")
+                logging.info("FORZADO: Clave API de Mistral cargada desde estructura plana")
+        # Prioridad 2: Estructura anidada
+        elif 'mistral' in st.secrets and 'api_key' in st.secrets['mistral']:
+            mistral_key = st.secrets["mistral"]["api_key"]
+            if mistral_key and not mistral_key.startswith('your-'):
+                os.environ["MISTRAL_API_KEY"] = mistral_key
+                print(f"FORZADO: Clave API de Mistral cargada desde estructura anidada")
+                logging.info("FORZADO: Clave API de Mistral cargada desde estructura anidada")
+        else:
+            print("ADVERTENCIA: No se encontró una clave API de Mistral válida en secrets")
+            logging.warning("No se encontró una clave API de Mistral válida en secrets")
+            os.environ["MISTRAL_API_KEY"] = default_mistral_key
+
+        # FORZAR CARGA DE ASSISTANT ID
+        # Prioridad 1: Estructura plana (preferida)
+        if 'ASSISTANT_ID' in st.secrets:
+            assistant_id = st.secrets["ASSISTANT_ID"]
+            if assistant_id:
+                os.environ["ASSISTANT_ID"] = assistant_id
+                print(f"FORZADO: ID del asistente cargado desde estructura plana: {assistant_id}")
+                logging.info(f"FORZADO: ID del asistente cargado desde estructura plana: {assistant_id}")
+        # Prioridad 2: Estructura anidada
+        elif 'openai' in st.secrets and 'assistant_id' in st.secrets['openai']:
+            assistant_id = st.secrets["openai"]["assistant_id"]
+            if assistant_id:
+                os.environ["ASSISTANT_ID"] = assistant_id
+                print(f"FORZADO: ID del asistente cargado desde estructura anidada: {assistant_id}")
+                logging.info(f"FORZADO: ID del asistente cargado desde estructura anidada: {assistant_id}")
+        else:
+            print(f"ADVERTENCIA: No se encontró un ID de asistente válido en secrets, usando predeterminado: {default_assistant_id}")
+            logging.warning(f"No se encontró un ID de asistente válido en secrets, usando predeterminado: {default_assistant_id}")
+            os.environ["ASSISTANT_ID"] = default_assistant_id
+
+        # FORZAR CARGA DE MODELO API
+        # Prioridad 1: Estructura plana (preferida)
+        if 'OPENAI_API_MODEL' in st.secrets:
+            modelo = st.secrets["OPENAI_API_MODEL"]
+            os.environ["OPENAI_API_MODEL"] = modelo
+            print(f"FORZADO: Modelo API cargado desde estructura plana: {modelo}")
+            logging.info(f"FORZADO: Modelo API cargado desde estructura plana: {modelo}")
+        # Prioridad 2: Estructura anidada
+        elif 'openai' in st.secrets and 'api_model' in st.secrets['openai']:
+            modelo = st.secrets["openai"]["api_model"]
+            os.environ["OPENAI_API_MODEL"] = modelo
+            print(f"FORZADO: Modelo API cargado desde estructura anidada: {modelo}")
+            logging.info(f"FORZADO: Modelo API cargado desde estructura anidada: {modelo}")
+        else:
+            print("ADVERTENCIA: No se encontró un modelo API válido en secrets")
+            logging.warning("No se encontró un modelo API válido en secrets")
+
+    except Exception as e:
+        logging.error(f"Error al cargar secrets: {str(e)}")
+        # Usar valores predeterminados como fallback
+        os.environ["OPENAI_API_KEY"] = default_openai_key
+        os.environ["MISTRAL_API_KEY"] = default_mistral_key
+        os.environ["ASSISTANT_ID"] = default_assistant_id
+        logging.warning("Usando valores predeterminados debido a error al cargar secrets")
+
+# VERIFICACIÓN FINAL DE CLAVES
+# Verificar que las claves no sean placeholders
+print(f"VERIFICACIÓN FINAL - OPENAI_API_KEY: {os.environ['OPENAI_API_KEY'][:7]}...")
+logging.info(f"VERIFICACIÓN FINAL - OPENAI_API_KEY: {os.environ['OPENAI_API_KEY'][:7]}...")
+
+# Intentar una última verificación y corrección
+if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
+    print("ALERTA: La clave API de OpenAI sigue siendo un placeholder después de todos los intentos")
+    logging.error("ALERTA: La clave API de OpenAI sigue siendo un placeholder después de todos los intentos")
+
+    # Último intento desesperado para Streamlit Cloud
+    if hasattr(st, 'secrets'):
+        # Verificar todas las claves disponibles
+        all_keys = []
+        for key in st.secrets.keys():
+            all_keys.append(key)
+            # Si es un diccionario, verificar sus claves también
+            if isinstance(st.secrets[key], dict):
+                for subkey in st.secrets[key].keys():
+                    all_keys.append(f"{key}.{subkey}")
+
+        print(f"TODAS LAS CLAVES DISPONIBLES EN SECRETS: {all_keys}")
+        logging.error(f"TODAS LAS CLAVES DISPONIBLES EN SECRETS: {all_keys}")
+
+        # Buscar cualquier clave que pueda ser una clave API de OpenAI
+        for key in all_keys:
+            if '.' in key:  # Clave anidada
+                parent, child = key.split('.')
+                if child.lower() in ['api_key', 'apikey', 'key', 'openai_api_key'] and isinstance(st.secrets[parent], dict):
+                    value = st.secrets[parent][child]
+                    if isinstance(value, str) and value.startswith('sk-') and not value.startswith('sk-your-'):
+                        os.environ["OPENAI_API_KEY"] = value
+                        print(f"RESCATE: Encontrada posible clave API en {key}: {value[:7]}...")
+                        logging.info(f"RESCATE: Encontrada posible clave API en {key}: {value[:7]}...")
+                        break
+            else:  # Clave plana
+                if key.lower() in ['api_key', 'apikey', 'key', 'openai_api_key']:
+                    value = st.secrets[key]
+                    if isinstance(value, str) and value.startswith('sk-') and not value.startswith('sk-your-'):
+                        os.environ["OPENAI_API_KEY"] = value
+                        print(f"RESCATE: Encontrada posible clave API en {key}: {value[:7]}...")
+                        logging.info(f"RESCATE: Encontrada posible clave API en {key}: {value[:7]}...")
+                        break
+
+    # Mensaje de error diferente según el entorno
+    if is_cloud:
+        st.error("Error de configuración: La clave API de OpenAI no está configurada correctamente en Streamlit Cloud. Por favor, verifica los secretos en el panel de control de Streamlit.")
+        # Mostrar instrucciones detalladas
+        st.info("""
+        Para configurar los secretos en Streamlit Cloud:
+        1. Ve a https://share.streamlit.io/
+        2. Selecciona tu aplicación 'expert_nexus'
+        3. Haz clic en 'Settings' (⚙️)
+        4. En la sección 'Secrets', configura los siguientes secretos:
+           - OPENAI_API_KEY = "sk-tu-clave-real-de-openai"
+           - ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+           - OPENAI_API_MODEL = "gpt-4.1-nano"
+           - MISTRAL_API_KEY = "tu-clave-real-de-mistral"
+        5. Haz clic en 'Save'
+        6. Reinicia la aplicación
+        """)
+    else:
+        st.error("Error de configuración: La clave API de OpenAI no es válida. Por favor, configura una clave válida en secrets.toml o en assistants_config.py.")
 
 # Configuración de página Streamlit
 st.set_page_config(
@@ -294,27 +526,7 @@ def rerun_app():
             logging.error(f"Reinicio con JavaScript falló: {str(e3)}")
 
 
-# Detectar entorno de ejecución
-def is_streamlit_cloud():
-    """
-    Detecta si la aplicación se está ejecutando en Streamlit Cloud
-    con verificación multi-indicador
-    """
-    try:
-        # Múltiples indicadores para una detección más robusta
-        indicators = [
-            os.environ.get("STREAMLIT_SHARING_MODE") is not None,
-            os.environ.get("STREAMLIT_SERVER_BASE_URL_IS_SET") is not None,
-            os.environ.get("IS_STREAMLIT_CLOUD") == "true",
-            os.path.exists("/.streamlit/config.toml"),
-            "STREAMLIT_RUNTIME" in os.environ,
-        ]
 
-        # Si al menos dos indicadores son positivos, consideramos que es Cloud
-        return sum(indicators) >= 2
-    except Exception as e:
-        logging.warning(f"Error al detectar entorno: {str(e)}")
-        return False
 
 
 # Crear cliente OpenAI para Assistants
@@ -325,17 +537,48 @@ def create_openai_client(api_key):
     y verificación de conectividad
     """
     try:
+        # Verificar que la clave API no sea un placeholder
+        if not api_key or api_key.startswith('sk-your-'):
+            error_msg = f"Clave API inválida: {api_key[:10] if len(api_key) > 10 else api_key}..."
+            logging.error(error_msg)
+
+            # Mensaje de error diferente según el entorno
+            if is_cloud:
+                st.error("No se pudo conectar a OpenAI: La clave API no está configurada correctamente en Streamlit Cloud. Por favor, verifica los secretos en el panel de control de Streamlit.")
+            else:
+                st.error(f"No se pudo conectar a OpenAI: Clave API inválida. Por favor, configura una clave válida en secrets.toml.")
+            return None
+
+        # Mostrar información de depuración (sin exponer la clave completa)
+        logging.info(f"Intentando crear cliente OpenAI con clave: {api_key[:7]}...{api_key[-4:]}")
+
         client = OpenAI(
             api_key=api_key, default_headers={"OpenAI-Beta": "assistants=v2"}
         )
 
         # Verificar conectividad con una llamada simple
-        models = client.models.list()
-        if not models:
-            raise Exception("No se pudo obtener la lista de modelos")
+        try:
+            models = client.models.list()
+            if not models:
+                raise Exception("No se pudo obtener la lista de modelos")
 
-        logging.info("Cliente OpenAI inicializado correctamente")
-        return client
+            # Mostrar los modelos disponibles para depuración
+            model_ids = [model.id for model in models.data[:5]]
+            logging.info(f"Modelos disponibles (primeros 5): {model_ids}")
+
+            logging.info("Cliente OpenAI inicializado correctamente")
+            return client
+        except Exception as api_error:
+            error_details = str(api_error)
+            logging.error(f"Error en la llamada a la API de OpenAI: {error_details}")
+
+            # Extraer código de error para mejor diagnóstico
+            error_code = "desconocido"
+            if hasattr(api_error, 'status_code'):
+                error_code = api_error.status_code
+
+            st.error(f"No se pudo conectar a OpenAI: Error code: {error_code} - {error_details}")
+            return None
     except Exception as e:
         logging.error(f"Error inicializando cliente OpenAI: {str(e)}")
         st.error(f"No se pudo conectar a OpenAI: {str(e)}")
@@ -1130,17 +1373,22 @@ def process_document_with_mistral_ocr(api_key, file_bytes, file_type, file_name)
                 # Para archivos de texto, extraer contenido directamente
                 try:
                     # Intentar leer con diferentes codificaciones
+                    text_content = None
                     try:
                         text_content = file_bytes.decode("utf-8")
-                        return {"text": text_content, "format": "text"}
                     except UnicodeDecodeError:
                         # Intentar con otras codificaciones comunes
                         for encoding in ["latin-1", "cp1252", "iso-8859-1"]:
                             try:
                                 text_content = file_bytes.decode(encoding)
-                                return {"text": text_content, "format": "text"}
+                                break
                             except UnicodeDecodeError:
                                 continue
+
+                    # Si pudimos decodificar el texto, devolverlo
+                    if text_content:
+                        logging.info(f"Archivo de texto {file_name} decodificado correctamente")
+                        return {"text": text_content, "format": "text"}
 
                     # Si llegamos aquí, no pudimos decodificar el texto
                     # Intentar enviar como documento plano
@@ -1377,6 +1625,84 @@ def manage_document_context():
                 st.info("No se seleccionaron documentos para eliminar.")
     else:
         st.info("No hay documentos cargados en el contexto actual.")
+
+
+# Función para verificar el contexto de documentos
+@handle_error(max_retries=0)
+def verify_document_context():
+    """
+    Verifica que los documentos en el contexto estén correctamente procesados
+    y disponibles para el asistente. También detecta y permite eliminar archivos temporales.
+    """
+    if "document_contents" in st.session_state and st.session_state.document_contents:
+        st.write("### Verificación de documentos en contexto")
+
+        # Detectar archivos temporales (patrones comunes)
+        temp_file_patterns = ["img-", "temp", "~$", ".tmp"]
+        potential_temp_files = []
+
+        # Verificar cada documento
+        for doc_name, doc_content in st.session_state.document_contents.items():
+            # Verificar si parece un archivo temporal
+            is_temp_file = any(pattern in doc_name.lower() for pattern in temp_file_patterns)
+
+            if is_temp_file:
+                potential_temp_files.append(doc_name)
+                st.warning(f"⚠️ {doc_name}: Posible archivo temporal")
+
+            if isinstance(doc_content, dict) and "text" in doc_content:
+                text_length = len(doc_content["text"])
+                format_type = doc_content.get("format", "desconocido")
+
+                # Mostrar estado con color según el tamaño del texto
+                if text_length > 1000:
+                    st.success(f"✅ {doc_name}: {text_length} caracteres, formato: {format_type}")
+                elif text_length > 0:
+                    st.warning(f"⚠️ {doc_name}: Solo {text_length} caracteres, formato: {format_type}")
+                else:
+                    st.error(f"❌ {doc_name}: No se extrajo texto (0 caracteres)")
+            elif isinstance(doc_content, dict) and "error" in doc_content:
+                st.error(f"❌ {doc_name}: Error - {doc_content.get('error', 'Error desconocido')}")
+            else:
+                st.warning(f"⚠️ {doc_name}: Formato no reconocido")
+
+        # Opción para eliminar archivos temporales si se detectaron
+        if potential_temp_files:
+            st.write("### Archivos temporales detectados")
+            st.write("Se detectaron posibles archivos temporales que podrían no ser relevantes para el contexto:")
+
+            # Crear checkboxes para seleccionar archivos a eliminar
+            files_to_remove = {}
+            for temp_file in potential_temp_files:
+                files_to_remove[temp_file] = st.checkbox(
+                    f"Eliminar {temp_file}", value=True, key=f"remove_temp_{temp_file}"
+                )
+
+            # Botón para eliminar archivos temporales
+            if st.button("Eliminar archivos temporales seleccionados"):
+                removed_count = 0
+                for file_name, should_remove in files_to_remove.items():
+                    if should_remove:
+                        if file_name in st.session_state.document_contents:
+                            del st.session_state.document_contents[file_name]
+                        if file_name in st.session_state.uploaded_files:
+                            st.session_state.uploaded_files.remove(file_name)
+                        removed_count += 1
+
+                if removed_count > 0:
+                    st.success(f"Se eliminaron {removed_count} archivos temporales del contexto.")
+                    # Usar sistema seguro de reinicio
+                    rerun_app()
+                else:
+                    st.info("No se seleccionaron archivos para eliminar.")
+
+        # Botón para refrescar documentos
+        if st.button("Refrescar documentos en contexto"):
+            st.success("Contexto de documentos actualizado")
+            # Usar sistema seguro de reinicio
+            rerun_app()
+    else:
+        st.info("No hay documentos en el contexto actual.")
 
 
 # Función para inicializar un thread con OpenAI Assistants
@@ -1804,50 +2130,34 @@ st.title(f"{APP_IDENTITY['name']} {APP_IDENTITY['icon']} {APP_IDENTITY['tagline'
 with st.sidebar:
     st.title(f"{APP_IDENTITY['icon']} Configuración y Recursos")
 
-    # Obtener API Key de OpenAI
-    openai_api_key = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener API Key de OpenAI (ya cargada en os.environ)
     openai_api_key = os.environ.get("OPENAI_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml
-    if not openai_api_key and hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-        openai_api_key = st.secrets["OPENAI_API_KEY"]
-
-    # 3. Solicitar al usuario
-    if not openai_api_key:
+    # Solicitar al usuario solo si no está disponible
+    if not openai_api_key or openai_api_key.startswith('sk-your-'):
         openai_api_key = st.text_input(
             "API Key de OpenAI", type="password", help="Ingrese su API Key de OpenAI"
         )
+        if openai_api_key and not openai_api_key.startswith('sk-your-'):
+            os.environ["OPENAI_API_KEY"] = openai_api_key
+            logging.info("Clave API de OpenAI proporcionada por el usuario")
 
-    # Obtener API Key de Mistral
-    mistral_api_key = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener API Key de Mistral (ya cargada en os.environ)
     mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
-    # 2. Intentar obtener de secrets.toml
-    if (
-        not mistral_api_key
-        and hasattr(st, "secrets")
-        and "MISTRAL_API_KEY" in st.secrets
-    ):
-        mistral_api_key = st.secrets["MISTRAL_API_KEY"]
-
-    # 3. Solicitar al usuario
-    if not mistral_api_key:
+    # Solicitar al usuario solo si no está disponible
+    if not mistral_api_key or mistral_api_key.startswith('your-'):
         mistral_api_key = st.text_input(
             "API Key de Mistral",
             type="password",
             help="Ingrese su API Key de Mistral para OCR",
         )
+        if mistral_api_key and not mistral_api_key.startswith('your-'):
+            os.environ["MISTRAL_API_KEY"] = mistral_api_key
+            logging.info("Clave API de Mistral proporcionada por el usuario")
 
-    # Obtener Assistant ID - Ya no se usa directamente, se usa el ID del experto actual
-    assistant_id = None
-    # 1. Intentar obtener de variables de entorno
+    # Obtener Assistant ID (ya cargado en os.environ)
     assistant_id = os.environ.get("ASSISTANT_ID")
-
-    # 2. Intentar obtener de secrets.toml
-    if not assistant_id and hasattr(st, "secrets") and "ASSISTANT_ID" in st.secrets:
-        assistant_id = st.secrets["ASSISTANT_ID"]
 
     # Verificar configuración
     if openai_api_key and mistral_api_key:
@@ -1862,9 +2172,8 @@ with st.sidebar:
             APP_IDENTITY["config_warning"].format(missing_items=", ".join(missing))
         )
 
-    # Mostrar entorno
-    env_type = "Streamlit Cloud" if is_streamlit_cloud() else "Local"
-    st.info(f"Entorno detectado: {env_type}")
+    # Mostrar información del sistema
+    st.info(f"Sistema inicializado correctamente")
 
     # Selector de expertos
     st.subheader("🤖 Expertos Disponibles")
@@ -1885,11 +2194,16 @@ with st.sidebar:
             index=current_expert_index
         )
 
+        # Opción para preservar el contexto
+        preserve_context = st.checkbox("Preservar contexto y archivos", value=True, help="Mantiene los mensajes y archivos adjuntos al cambiar de experto")
+
         # Botón para confirmar el cambio de experto
         if st.button("Cambiar a este experto", use_container_width=True):
-            if change_expert(selected_expert):
+            if expert_selection.change_expert(selected_expert, "Cambio manual de experto", preserve_context):
                 st.success(f"Experto cambiado a: {expert_options[selected_expert]}")
                 st.rerun()
+            else:
+                st.error(f"No se pudo cambiar al experto seleccionado")
     else:
         st.warning("No se pudo cargar la configuración de expertos.")
 
@@ -1968,6 +2282,10 @@ with st.sidebar:
     st.subheader("📄 Gestión de Documentos")
     manage_document_context()
 
+    # Verificación de documentos en contexto
+    st.subheader("🔍 Verificación de Documentos")
+    verify_document_context()
+
     # Botón para limpiar la sesión actual
     if st.button(
         "🧹 Limpiar sesión actual",
@@ -2035,27 +2353,21 @@ if not openai_api_key or not mistral_api_key or not assistant_id:
 
 
 
-def change_expert(expert_key, reason="Selección manual"):
+def change_expert(expert_key, reason="Selección manual", preserve_context=True):
     """
     Cambia el experto actual y registra el cambio en el historial.
+    Esta función es un wrapper para la función del módulo expert_selection.
 
     Parámetros:
         expert_key: Clave del experto a seleccionar
         reason: Razón del cambio de experto
+        preserve_context: Si se debe preservar el contexto (mensajes y archivos) entre cambios
 
     Retorno:
         bool: True si el cambio fue exitoso, False en caso contrario
     """
-    if expert_key in st.session_state.assistants_config and expert_key != st.session_state.current_expert:
-        st.session_state.current_expert = expert_key
-        # Registrar el cambio en el historial con formato de 12 horas
-        st.session_state.expert_history.append({
-            "timestamp": datetime.now().strftime("%I:%M:%S %p"),
-            "expert": expert_key,
-            "reason": reason
-        })
-        return True
-    return False
+    # Usar la función del módulo expert_selection
+    return expert_selection.change_expert(expert_key, reason, preserve_context)
 
 # Diccionario de palabras clave para cada experto
 keywords_dict = {
@@ -2087,10 +2399,11 @@ keywords_dict = {
     "tutela": ["tutela", "acción de tutela", "derecho de petición", "amparo", "protección"]
 }
 
+@handle_error(max_retries=1)
 def detect_expert(message):
     """
-    Analiza el texto del mensaje y sugiere el experto más adecuado
-    basado en palabras clave.
+    Analiza el texto del mensaje y sugiere el experto más adecuado.
+    Esta función es un wrapper para la función del módulo expert_selection.
 
     Parámetros:
         message: Texto del mensaje del usuario
@@ -2098,22 +2411,8 @@ def detect_expert(message):
     Retorno:
         string: Clave del experto sugerido o None si no hay coincidencias
     """
-    if not message:
-        return None
-
-    message_lower = message.lower()
-    matches = {}
-
-    # Buscar coincidencias de palabras clave
-    for expert, keywords in keywords_dict.items():
-        match_count = sum(1 for keyword in keywords if keyword in message_lower)
-        if match_count > 0:
-            matches[expert] = match_count
-
-    # Devolver el experto con más coincidencias si hay alguno
-    if matches:
-        return max(matches.items(), key=lambda x: x[1])[0]
-    return None
+    # Usar la función del módulo expert_selection
+    return expert_selection.detect_expert(message, keywords_dict)
 
 
 
@@ -2132,11 +2431,42 @@ def process_message(message, expert_key):
     # Obtener el ID del asistente del expert_key
     assistant_id = st.session_state.assistants_config[expert_key]["id"]
 
+    # Enriquecer el mensaje con el contenido de los documentos
+    full_message = message
+
+    # SIEMPRE verificar si hay documentos en la sesión
+    if "document_contents" in st.session_state and st.session_state.document_contents:
+        document_context = "\n\n### Contenido de documentos adjuntos:\n\n"
+
+        # Filtrar archivos temporales
+        temp_file_patterns = ["img-", "temp", "~$", ".tmp"]
+        filtered_docs = {}
+        for doc_name, doc_content in st.session_state.document_contents.items():
+            # Verificar si parece un archivo temporal
+            is_temp_file = any(pattern in doc_name.lower() for pattern in temp_file_patterns)
+            if not is_temp_file:
+                filtered_docs[doc_name] = doc_content
+
+        # Usar los documentos filtrados
+        for doc_name, doc_content in filtered_docs.items():
+            # Extraer el texto del documento
+            if isinstance(doc_content, dict) and "text" in doc_content:
+                # Limitar el contenido para no exceder el contexto
+                doc_text = doc_content["text"][:10000] + "..." if len(doc_content["text"]) > 10000 else doc_content["text"]
+                document_context += f"-- Documento: {doc_name} --\n{doc_text}\n\n"
+            elif isinstance(doc_content, dict) and "error" in doc_content:
+                document_context += f"-- Documento: {doc_name} -- (Error: {doc_content.get('error', 'Error desconocido')})\n\n"
+
+        # Añadir el contexto de documentos al mensaje si hay contenido real
+        if len(document_context) > 60:  # Más que solo el encabezado
+            full_message = f"{message}\n\n{document_context}"
+            logging.info(f"Mensaje enriquecido con {len(filtered_docs)} documentos (filtrados de {len(st.session_state.document_contents)}). Tamaño total: {len(full_message)} caracteres")
+
     # Añadir el mensaje a la conversación
     st.session_state.client.beta.threads.messages.create(
         thread_id=st.session_state.thread_id,
         role="user",
-        content=message
+        content=full_message
     )
 
     # Ejecutar el asistente con el thread actual
@@ -2195,6 +2525,41 @@ def process_message(message, expert_key):
                 return new_message["content"]
     else:
         logging.error(f"La ejecución falló con estado: {run.status}")
+
+        # Intentar usar modelo de respaldo si está configurado
+        backup_model = os.environ.get("OPENAI_API_MODEL", "")
+        if backup_model and "gpt-4.1-nano" in backup_model:
+            try:
+                logging.info(f"Intentando usar modelo de respaldo: {backup_model}")
+
+                # Crear mensaje para el modelo de respaldo
+                backup_messages = [
+                    {"role": "system", "content": f"Eres un asistente virtual experto en {st.session_state.assistants_config[expert_key]['titulo']}. {st.session_state.assistants_config[expert_key]['descripcion']}"}
+                ]
+
+                # Añadir contexto de la conversación (hasta 5 mensajes previos)
+                prev_messages = [m for m in st.session_state.messages if m.get("expert") == expert_key][-5:]
+                for prev_msg in prev_messages:
+                    backup_messages.append({"role": prev_msg["role"], "content": prev_msg["content"]})
+
+                # Añadir el mensaje actual
+                backup_messages.append({"role": "user", "content": full_message})
+
+                # Llamar al modelo de respaldo
+                backup_response = st.session_state.client.chat.completions.create(
+                    model=backup_model,
+                    messages=backup_messages,
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+
+                if backup_response and backup_response.choices and len(backup_response.choices) > 0:
+                    backup_text = backup_response.choices[0].message.content
+                    logging.info(f"Respuesta obtenida del modelo de respaldo ({len(backup_text)} caracteres)")
+                    return f"[Respuesta de respaldo usando {backup_model}]\n\n{backup_text}"
+            except Exception as backup_error:
+                logging.error(f"Error usando modelo de respaldo: {str(backup_error)}")
+
         return f"Lo siento, no pude procesar tu solicitud. Estado: {run.status}"
 
     return "Lo siento, no pude procesar tu solicitud en este momento."
@@ -2309,27 +2674,57 @@ if prompt:
 
                 # Procesar con OCR de Mistral
                 try:
-                    ocr_results = process_document_with_mistral_ocr(
-                        mistral_api_key, file_bytes, file_type, file.name
-                    )
+                    # Registrar información detallada para depuración
+                    logging.info(f"Iniciando procesamiento de {file.name} (tipo: {file_type}, tamaño: {len(file_bytes)} bytes)")
 
-                    if ocr_results and "error" not in ocr_results:
-                        current_doc_contents[file.name] = ocr_results
+                    # Intentar extraer texto directamente para PDFs antes de OCR
+                    extracted_text = None
+                    if file_type == "PDF":
+                        try:
+                            import PyPDF2
+                            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                            pdf_text = ""
+                            for page in pdf_reader.pages:
+                                pdf_text += page.extract_text() + "\n\n"
+
+                            if pdf_text.strip():
+                                logging.info(f"Texto extraído directamente del PDF {file.name}: {len(pdf_text)} caracteres")
+                                extracted_text = {"text": pdf_text, "format": "pdf_direct"}
+                        except Exception as pdf_error:
+                            logging.warning(f"Error extrayendo texto directo del PDF: {str(pdf_error)}")
+
+                    # Si no pudimos extraer texto directamente, usar OCR
+                    if not extracted_text:
+                        ocr_results = process_document_with_mistral_ocr(
+                            mistral_api_key, file_bytes, file_type, file.name
+                        )
+
+                        if ocr_results and "error" not in ocr_results:
+                            extracted_text = ocr_results
+                        else:
+                            error_msg = ocr_results.get("error", "Error desconocido durante el procesamiento")
+                            logging.error(f"Error en OCR para {file.name}: {error_msg}")
+                            # Intentar guardar el contenido crudo como respaldo
+                            if "raw_response" in ocr_results:
+                                extracted_text = {"text": f"Error en OCR: {error_msg}\n\nRespuesta cruda: {str(ocr_results['raw_response'])[:1000]}", "format": "error_with_raw"}
+                            else:
+                                extracted_text = {"text": f"Error en OCR: {error_msg}", "format": "error"}
+
+                    # Guardar el resultado final
+                    if extracted_text:
+                        current_doc_contents[file.name] = extracted_text
                         # Guardar en la sesión para referencia futura
-                        st.session_state.document_contents[file.name] = ocr_results
+                        st.session_state.document_contents[file.name] = extracted_text
                         st.success(f"Documento {file.name} procesado correctamente")
+                        logging.info(f"Documento {file.name} procesado exitosamente con formato {extracted_text.get('format', 'desconocido')}")
                         valid_files += 1
                     else:
-                        error_msg = ocr_results.get(
-                            "error", "Error desconocido durante el procesamiento"
-                        )
-                        st.warning(
-                            f"No se pudo extraer texto completo de {file.name}: {error_msg}"
-                        )
-                        # Aún así, guardamos el resultado para potencial depuración y recuperación parcial
-                        st.session_state.document_contents[file.name] = ocr_results
+                        st.warning(f"No se pudo extraer texto de {file.name}")
+                        logging.warning(f"No se pudo extraer texto de {file.name}")
                 except Exception as e:
                     st.error(f"Error procesando {file.name}: {str(e)}")
+                    logging.error(f"Excepción procesando {file.name}: {str(e)}")
+                    logging.error(traceback.format_exc())
 
             # Mostrar resumen de procesamiento
             if invalid_files > 0:
@@ -2346,9 +2741,35 @@ if prompt:
     # Generar un mensaje automático si solo hay archivos sin texto
     if not user_text and user_files:
         file_names = [f.name for f in user_files]
+
+        # Verificar si hay contenido de archivos para incluirlo en el mensaje
+        file_contents = ""
+        for file_name, content in current_doc_contents.items():
+            # Procesar archivos de texto
+            if file_name.lower().endswith('.txt') and 'text' in content:
+                file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+            # Procesar archivos PDF
+            elif (file_name.lower().endswith('.pdf') and 'text' in content):
+                file_contents += f"\n\nContenido del PDF {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+            # Procesar otros tipos de archivos con texto
+            elif 'text' in content and content['text']:
+                file_contents += f"\n\nContenido de {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+
+        # Mensaje base
         user_text = APP_IDENTITY["file_upload_default_message"].format(
             files=", ".join(file_names)
         )
+
+        # Añadir contenido de archivos si existe
+        if file_contents:
+            user_text += file_contents
+            logging.info(f"Mensaje generado con contenido de {len(current_doc_contents)} archivos")
 
     # Si no hay ni texto ni archivos, no hacemos nada
     if not user_text and not user_files:
@@ -2372,38 +2793,17 @@ if prompt:
         with st.chat_message("user"):
             st.markdown(display_message)
 
-        # Detectar si es necesario cambiar de experto
-        suggested_expert = detect_expert(user_text)
-
         # Procesar la respuesta usando el contenido de los documentos
         if st.session_state.thread_id and "client" in st.session_state and st.session_state.client:
             try:
-                # Si se detecta un experto diferente, sugerir cambio
-                if suggested_expert and suggested_expert != st.session_state.current_expert:
-                    expert_titulo = st.session_state.assistants_config[suggested_expert]["titulo"]
 
-                    st.info(f"Tu mensaje parece relacionado con '{expert_titulo}'. ¿Quieres cambiar de experto?")
-
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button("Usar experto sugerido", key="use_suggested"):
-                            change_expert(suggested_expert, "Cambio automático por palabras clave")
-                            response_text = process_message(user_text, suggested_expert)
-                            if response_text:
-                                st.rerun()
-                    with col2:
-                        if st.button("Continuar con experto actual", key="keep_current"):
-                            response_text = process_message(user_text, st.session_state.current_expert)
-                            if response_text:
-                                st.rerun()
-                else:
-                    # Procesar con el experto actual
-                    with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
-                        response_text = process_message(user_text, st.session_state.current_expert)
-                        if response_text:
-                            st.rerun()
-                        else:
-                            st.error(APP_IDENTITY["response_error"])
+                # Si llegamos aquí, continuamos con el flujo normal (procesar con el experto actual)
+                with st.spinner(f"Procesando tu mensaje con {st.session_state.assistants_config[st.session_state.current_expert]['titulo']}..."):
+                    response_text = process_message(user_text, st.session_state.current_expert)
+                    if response_text:
+                        st.rerun()
+                    else:
+                        st.error(APP_IDENTITY["response_error"])
             except Exception as e:
                 st.error(f"Error: {str(e)}")
                 logging.error(f"Error en procesamiento de mensaje: {str(e)}")
