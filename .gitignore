@@ -1,0 +1,34 @@
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches de IDEs
+.vscode/
+.idea/
+
+# Archivos de entorno virtual
+venv/
+env/
+
+# Archivos de configuración del sistema operativo
+.DS_Store
+Thumbs.db
+app_full.py
+*.ttf
+
+# Archivos de configuración de Streamlit
+.streamlit/
+logs/
+
+# Archivos de configuración con claves API reales
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de configuración local (con claves reales)
+config_local.py
+assistants_config_local.py
