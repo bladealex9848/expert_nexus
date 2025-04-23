@@ -396,7 +396,7 @@ if os.environ["OPENAI_API_KEY"].startswith('sk-your-'):
         3. Haz clic en 'Settings' (⚙️)
         4. En la sección 'Secrets', configura los siguientes secretos:
            - OPENAI_API_KEY = "sk-tu-clave-real-de-openai"
-           - ASSISTANT_ID = "asst_RfRNo5Ij76ieg7mV11CqYV9v"
+           - ASSISTANT_ID = "tu-id-de-asistente"
            - OPENAI_API_MODEL = "gpt-4.1-nano"
            - MISTRAL_API_KEY = "tu-clave-real-de-mistral"
         5. Haz clic en 'Save'
@@ -1035,14 +1035,60 @@ def _export_chat_to_pdf_fallback(messages):
 def export_chat_to_markdown(messages):
     """
     Exporta el historial de chat a formato markdown
-    con mejoras de formato y legibilidad
+    con mejoras de formato y legibilidad, incluyendo información del experto
     """
     md_content = f"# {APP_IDENTITY['name']} - Historial de Conversación\n\n"
     md_content += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
+    # Obtener información de expertos si está disponible
+    expert_info = {}
+    if "assistants_config" in st.session_state:
+        for expert_key, expert_data in st.session_state.assistants_config.items():
+            expert_info[expert_key] = {
+                "titulo": expert_data.get("titulo", "Experto"),
+                "descripcion": expert_data.get("descripcion", "")
+            }
+
+    # Obtener historial de expertos si está disponible
+    expert_history = []
+    if "expert_history" in st.session_state:
+        expert_history = st.session_state.expert_history
+
+    # Añadir información sobre el historial de expertos
+    if expert_history:
+        md_content += "## Historial de Expertos\n\n"
+        for entry in expert_history:
+            expert_key = entry.get("expert", "")
+            expert_title = expert_info.get(expert_key, {}).get("titulo", expert_key) if expert_key else "Desconocido"
+            md_content += f"- **{entry.get('timestamp', '')}**: {expert_title}"
+            if "reason" in entry:
+                md_content += f" - *{entry.get('reason', '')}*"
+            md_content += "\n"
+        md_content += "\n\n"
+
+    # Obtener el experto actual
+    current_expert = None
+    if "current_expert" in st.session_state:
+        current_expert = st.session_state.current_expert
+
+    # Procesar mensajes
     for msg in messages:
-        role = "Usuario" if msg["role"] == "user" else APP_IDENTITY["name"]
-        md_content += f"## {role}\n\n{msg['content']}\n\n"
+        if msg["role"] == "user":
+            role = "Usuario"
+            md_content += f"## {role}\n\n{msg['content']}\n\n"
+        else:
+            # Para mensajes del asistente, incluir información del experto
+            expert_key = current_expert if current_expert else "asistente_virtual"
+            expert_title = expert_info.get(expert_key, {}).get("titulo", APP_IDENTITY["name"]) if expert_key else APP_IDENTITY["name"]
+
+            md_content += f"## {expert_title}\n\n"
+            # Añadir descripción del experto si está disponible
+            expert_desc = expert_info.get(expert_key, {}).get("descripcion", "")
+            if expert_desc:
+                md_content += f"*{expert_desc}*\n\n"
+
+            md_content += f"{msg['content']}\n\n"
+
         md_content += "---\n\n"  # Separador para mejorar legibilidad
 
     return md_content
