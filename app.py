@@ -417,13 +417,20 @@ st.set_page_config(
 # Estilos CSS personalizados
 st.markdown("""
 <style>
-    /* Estilos para la tarjeta de experto */
+    /* Estilos para la tarjeta de experto - Modo claro y oscuro */
     .expert-card {
         padding: 15px;
         border-radius: 8px;
-        background-color: #f0f2f6;
         margin-bottom: 20px;
         border-left: 4px solid #1E88E5;
+    }
+    /* Modo claro */
+    .light .expert-card {
+        background-color: #f0f2f6;
+    }
+    /* Modo oscuro */
+    .dark .expert-card {
+        background-color: #2c3e50;
     }
 
     /* Estilos para el historial de expertos */
@@ -433,11 +440,20 @@ st.markdown("""
         margin-bottom: 8px;
     }
 
-    /* Estilos para los mensajes de chat */
+    /* Estilos para los mensajes de chat - Modo claro y oscuro */
     .expert-message {
-        background-color: #f0f7ff;
         padding: 5px 0;
         border-radius: 4px;
+    }
+    /* Modo claro */
+    .light .expert-message {
+        background-color: #f0f7ff;
+        color: #333;
+    }
+    /* Modo oscuro */
+    .dark .expert-message {
+        background-color: #1e3a5f;
+        color: #f0f0f0;
     }
 
     /* Estilos para los botones de selección de experto */
@@ -446,13 +462,67 @@ st.markdown("""
         border-radius: 20px;
     }
 
-    /* Estilos para el nombre del experto en los mensajes */
+    /* Estilos para el nombre del experto en los mensajes - Modo claro y oscuro */
     .expert-name {
         font-weight: bold;
-        color: #1E88E5;
         margin-bottom: 5px;
     }
+    /* Modo claro */
+    .light .expert-name {
+        color: #1E88E5;
+    }
+    /* Modo oscuro */
+    .dark .expert-name {
+        color: #64b5f6;
+    }
+
+    /* Estilos para títulos en modo oscuro */
+    .dark h1, .dark h2, .dark h3 {
+        color: #f0f0f0 !important;
+    }
+
+    /* Estilos para el área de chat en modo oscuro */
+    .dark .stChatMessage {
+        background-color: #1e2a38 !important;
+        color: #f0f0f0 !important;
+    }
+
+    /* Detector de tema */
+    @media (prefers-color-scheme: dark) {
+        body {
+            color-scheme: dark;
+        }
+        body:not(.light) {
+            background-color: #0e1117;
+            color: #f0f0f0;
+        }
+    }
 </style>
+
+<script>
+    // Script para detectar el tema y aplicar la clase correspondiente
+    document.addEventListener('DOMContentLoaded', function() {
+        const body = document.body;
+        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (isDarkMode) {
+            body.classList.add('dark');
+        } else {
+            body.classList.add('light');
+        }
+
+        // Escuchar cambios en el tema del sistema
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                body.classList.remove('light');
+                body.classList.add('dark');
+            } else {
+                body.classList.remove('dark');
+                body.classList.add('light');
+            }
+        });
+    });
+</script>
 """, unsafe_allow_html=True)
 
 
@@ -2075,12 +2145,17 @@ def clean_current_session():
 # No usamos cache_data para evitar problemas de serialización
 def load_assistants_config():
     """
-    Carga la configuración de asistentes desde la configuración predefinida
+    Carga la configuración de asistentes desde secrets.toml
     """
     try:
-        # Usar directamente la configuración predefinida para evitar problemas de serialización
-        logging.info("Usando configuración predefinida de asistentes")
-        return assistants_config.ASSISTANTS_CONFIG
+        # Intentar cargar desde secrets.toml primero
+        if hasattr(st, 'secrets') and 'assistants' in st.secrets:
+            logging.info("Cargando configuración de asistentes desde secrets.toml")
+            return st.secrets['assistants']
+        else:
+            # Si no está disponible en secrets, usar la configuración predefinida como fallback
+            logging.warning("No se encontró configuración de asistentes en secrets.toml, usando fallback")
+            return assistants_config.ASSISTANTS_CONFIG
     except Exception as e:
         logging.error(f"Error cargando configuración de asistentes: {str(e)}")
         st.error("No se pudo cargar la configuración de asistentes.")
@@ -2111,8 +2186,23 @@ if "expert_history" not in st.session_state:
     st.session_state.expert_history = []
 
 if "current_expert" not in st.session_state:
-    # Establecer un experto predeterminado (asistente_virtual)
-    default_expert = "asistente_virtual"
+    # Obtener el experto predeterminado de secrets.toml o usar asistente_virtual como fallback
+    default_expert = "asistente_virtual"  # Valor por defecto
+
+    # Intentar obtener el experto predeterminado de secrets.toml
+    if hasattr(st, 'secrets') and 'ASSISTANT_ID' in st.secrets:
+        # Buscar el experto que coincida con el ID en secrets.toml
+        assistant_id_from_secrets = st.secrets['ASSISTANT_ID']
+        logging.info(f"Buscando experto con ID: {assistant_id_from_secrets}")
+
+        # Buscar en la configuración de asistentes
+        if "assistants_config" in st.session_state:
+            for expert_key, expert_data in st.session_state.assistants_config.items():
+                if expert_data.get('id') == assistant_id_from_secrets:
+                    default_expert = expert_key
+                    logging.info(f"Experto predeterminado encontrado en secrets.toml: {default_expert}")
+                    break
+
     st.session_state.current_expert = default_expert
     # Registrar el primer experto en el historial con formato de 12 horas
     st.session_state.expert_history.append({
@@ -2156,8 +2246,14 @@ with st.sidebar:
             os.environ["MISTRAL_API_KEY"] = mistral_api_key
             logging.info("Clave API de Mistral proporcionada por el usuario")
 
-    # Obtener Assistant ID (ya cargado en os.environ)
-    assistant_id = os.environ.get("ASSISTANT_ID")
+    # Obtener Assistant ID (primero de secrets.toml, luego de os.environ)
+    assistant_id = None
+    if hasattr(st, 'secrets') and 'ASSISTANT_ID' in st.secrets:
+        assistant_id = st.secrets['ASSISTANT_ID']
+        logging.info("ID de asistente cargado desde secrets.toml")
+    else:
+        assistant_id = os.environ.get("ASSISTANT_ID")
+        logging.info("ID de asistente cargado desde variables de entorno")
 
     # Verificar configuración
     if openai_api_key and mistral_api_key:
