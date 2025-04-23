@@ -1149,43 +1149,88 @@ def export_chat_to_markdown(messages):
 
     # Añadir sección de archivos adjuntos si existen
     has_attachments = False
+    attachment_files = []
 
     # Verificar si hay archivos adjuntos en la sesión
-    if "uploaded_files" in st.session_state and st.session_state.uploaded_files:
-        has_attachments = True
-        md_content += "## Archivos Adjuntos\n\n"
-        for file in st.session_state.uploaded_files:
-            if hasattr(file, "name"):
-                md_content += f"- **{file.name}**\n"
-                # Añadir información adicional si está disponible
-                if hasattr(file, "size"):
-                    size_kb = file.size / 1024
-                    md_content += f"  - Tamaño: {size_kb:.2f} KB\n"
-                if hasattr(file, "type"):
-                    md_content += f"  - Tipo: {file.type}\n"
-        md_content += "\n"
+    if "uploaded_files" in st.session_state:
+        # Verificar si uploaded_files es una lista de objetos o una lista de nombres
+        if st.session_state.uploaded_files:
+            has_attachments = True
+
+            # Procesar cada archivo
+            for file_item in st.session_state.uploaded_files:
+                # Si es un objeto de archivo
+                if hasattr(file_item, "name"):
+                    file_info = {
+                        "name": file_item.name,
+                        "source": "session"
+                    }
+                    # Añadir información adicional si está disponible
+                    if hasattr(file_item, "size"):
+                        file_info["size"] = file_item.size
+                    if hasattr(file_item, "type"):
+                        file_info["type"] = file_item.type
+                    attachment_files.append(file_info)
+                # Si es un string (nombre de archivo)
+                elif isinstance(file_item, str):
+                    attachment_files.append({
+                        "name": file_item,
+                        "source": "session"
+                    })
 
     # Verificar si hay menciones de archivos adjuntos en los mensajes
-    if not has_attachments:
-        # Buscar menciones de archivos adjuntos en los mensajes
-        attachment_mentions = []
-        for msg in messages:
-            if msg["role"] == "user" and "*Archivo adjunto:" in msg["content"]:
-                # Extraer nombre del archivo mencionado
-                content = msg["content"]
+    for msg in messages:
+        if msg["role"] == "user":
+            content = msg["content"]
+
+            # Buscar menciones de archivos adjuntos en formato "*Archivo adjunto: nombre*"
+            if "*Archivo adjunto:" in content:
                 start_idx = content.find("*Archivo adjunto:")
                 if start_idx != -1:
                     end_idx = content.find("*", start_idx + 1)
                     if end_idx != -1:
                         file_mention = content[start_idx+18:end_idx].strip()
-                        attachment_mentions.append(file_mention)
+                        # Verificar si ya está en la lista
+                        if not any(f["name"] == file_mention for f in attachment_files):
+                            attachment_files.append({
+                                "name": file_mention,
+                                "source": "mention"
+                            })
 
-        # Si se encontraron menciones, añadirlas a la sección
-        if attachment_mentions:
-            md_content += "## Archivos Adjuntos\n\n"
-            for file_name in attachment_mentions:
-                md_content += f"- **{file_name}** (mencionado en la conversación)\n"
+            # Buscar menciones de archivos adjuntos en formato "*Archivo adjunto para análisis: nombre*"
+            if "*Archivo adjunto para análisis:" in content:
+                start_idx = content.find("*Archivo adjunto para análisis:")
+                if start_idx != -1:
+                    end_idx = content.find("*", start_idx + 1)
+                    if end_idx != -1:
+                        file_mention = content[start_idx+32:end_idx].strip()
+                        # Verificar si ya está en la lista
+                        if not any(f["name"] == file_mention for f in attachment_files):
+                            attachment_files.append({
+                                "name": file_mention,
+                                "source": "mention"
+                            })
+
+    # Si se encontraron archivos adjuntos, añadirlos a la sección
+    if attachment_files:
+        md_content += "## Archivos Adjuntos\n\n"
+        for file_info in attachment_files:
+            md_content += f"- **{file_info['name']}**"
+
+            # Añadir información adicional si está disponible
+            if "source" in file_info and file_info["source"] == "mention":
+                md_content += " (mencionado en la conversación)"
+
+            if "size" in file_info:
+                size_kb = file_info["size"] / 1024
+                md_content += f"\n  - Tamaño: {size_kb:.2f} KB"
+
+            if "type" in file_info:
+                md_content += f"\n  - Tipo: {file_info['type']}"
+
             md_content += "\n"
+
+        md_content += "\n"
 
     return md_content
 
