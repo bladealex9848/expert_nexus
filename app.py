@@ -1036,6 +1036,7 @@ def export_chat_to_markdown(messages):
     """
     Exporta el historial de chat a formato markdown
     con mejoras de formato y legibilidad, incluyendo información del experto
+    que respondió cada mensaje
     """
     md_content = f"# {APP_IDENTITY['name']} - Historial de Conversación\n\n"
     md_content += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
@@ -1066,30 +1067,93 @@ def export_chat_to_markdown(messages):
             md_content += "\n"
         md_content += "\n\n"
 
-    # Obtener el experto actual
-    current_expert = None
-    if "current_expert" in st.session_state:
-        current_expert = st.session_state.current_expert
+    # Obtener el experto predeterminado
+    default_expert = "asistente_virtual"
+    if "assistants_config" in st.session_state and default_expert not in expert_info:
+        # Si no existe el asistente_virtual, usar el primer experto disponible
+        if expert_info:
+            default_expert = list(expert_info.keys())[0]
 
-    # Procesar mensajes
+    # Crear un mapa de mensajes a expertos basado en el historial
+    # Esto nos permitirá saber qué experto estaba activo en cada momento
+    expert_timeline = []
+    if expert_history:
+        # Ordenar el historial por timestamp (asumiendo que ya está ordenado, pero por si acaso)
+        for entry in expert_history:
+            if "timestamp" in entry and "expert" in entry:
+                try:
+                    # Convertir timestamp a datetime para comparación
+                    # Formato esperado: "08:41:57 AM"
+                    time_str = entry.get("timestamp", "")
+                    expert_key = entry.get("expert", default_expert)
+
+                    # Añadir a la línea de tiempo
+                    expert_timeline.append({
+                        "timestamp": time_str,
+                        "expert": expert_key
+                    })
+                except Exception as e:
+                    logging.warning(f"Error procesando entrada de historial: {str(e)}")
+
+    # Si no hay historial, usar el experto actual
+    if not expert_timeline and "current_expert" in st.session_state:
+        expert_timeline.append({
+            "timestamp": "00:00:00",  # Tiempo ficticio anterior a cualquier mensaje
+            "expert": st.session_state.current_expert
+        })
+
+    # Si aún no hay timeline, usar el experto predeterminado
+    if not expert_timeline:
+        expert_timeline.append({
+            "timestamp": "00:00:00",
+            "expert": default_expert
+        })
+
+    # Procesar mensajes con información de experto correcta
+    message_index = 0
+    user_message_count = 0
+
     for msg in messages:
         if msg["role"] == "user":
+            # Contar mensajes de usuario para sincronizar con respuestas
+            user_message_count += 1
             role = "Usuario"
             md_content += f"## {role}\n\n{msg['content']}\n\n"
         else:
-            # Para mensajes del asistente, incluir información del experto
-            expert_key = current_expert if current_expert else "asistente_virtual"
-            expert_title = expert_info.get(expert_key, {}).get("titulo", APP_IDENTITY["name"]) if expert_key else APP_IDENTITY["name"]
+            # Para mensajes del asistente, determinar qué experto respondió
+            # Asumimos que cada mensaje del asistente corresponde al experto activo en ese momento
+            # Usamos el índice del mensaje para determinar el experto
+
+            # Por defecto, usar el último experto en la línea de tiempo
+            expert_key = expert_timeline[-1]["expert"] if expert_timeline else default_expert
+
+            # Si hay suficientes entradas en el historial, usar el experto correspondiente
+            # Restamos 1 porque el primer mensaje del asistente corresponde al experto inicial
+            if user_message_count - 1 < len(expert_timeline):
+                expert_key = expert_timeline[max(0, user_message_count - 1)]["expert"]
+
+            # Obtener información del experto
+            expert_title = expert_info.get(expert_key, {}).get("titulo", expert_key) if expert_key else APP_IDENTITY["name"]
+            expert_desc = expert_info.get(expert_key, {}).get("descripcion", "")
 
             md_content += f"## {expert_title}\n\n"
+
             # Añadir descripción del experto si está disponible
-            expert_desc = expert_info.get(expert_key, {}).get("descripcion", "")
             if expert_desc:
                 md_content += f"*{expert_desc}*\n\n"
 
             md_content += f"{msg['content']}\n\n"
 
         md_content += "---\n\n"  # Separador para mejorar legibilidad
+        message_index += 1
+
+    # Añadir sección de archivos adjuntos si existen
+    if "uploaded_files" in st.session_state and st.session_state.uploaded_files:
+        md_content += "## Archivos Adjuntos\n\n"
+        for file in st.session_state.uploaded_files:
+            if hasattr(file, "name"):
+                md_content += f"- {file.name}\n"
+        md_content += "\n"
 
     return md_content
 
