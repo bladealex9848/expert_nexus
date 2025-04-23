@@ -32,3 +32,8 @@ logs/
 # Archivos de configuración local (con claves reales)
 config_local.py
 assistants_config_local.py
+
+#Temp
+.stackdump
+.exe
+bash.exe.stackdump
