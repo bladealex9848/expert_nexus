@@ -1148,12 +1148,44 @@ def export_chat_to_markdown(messages):
         message_index += 1
 
     # Añadir sección de archivos adjuntos si existen
+    has_attachments = False
+
+    # Verificar si hay archivos adjuntos en la sesión
     if "uploaded_files" in st.session_state and st.session_state.uploaded_files:
+        has_attachments = True
         md_content += "## Archivos Adjuntos\n\n"
         for file in st.session_state.uploaded_files:
             if hasattr(file, "name"):
-                md_content += f"- {file.name}\n"
+                md_content += f"- **{file.name}**\n"
+                # Añadir información adicional si está disponible
+                if hasattr(file, "size"):
+                    size_kb = file.size / 1024
+                    md_content += f"  - Tamaño: {size_kb:.2f} KB\n"
+                if hasattr(file, "type"):
+                    md_content += f"  - Tipo: {file.type}\n"
         md_content += "\n"
+
+    # Verificar si hay menciones de archivos adjuntos en los mensajes
+    if not has_attachments:
+        # Buscar menciones de archivos adjuntos en los mensajes
+        attachment_mentions = []
+        for msg in messages:
+            if msg["role"] == "user" and "*Archivo adjunto:" in msg["content"]:
+                # Extraer nombre del archivo mencionado
+                content = msg["content"]
+                start_idx = content.find("*Archivo adjunto:")
+                if start_idx != -1:
+                    end_idx = content.find("*", start_idx + 1)
+                    if end_idx != -1:
+                        file_mention = content[start_idx+18:end_idx].strip()
+                        attachment_mentions.append(file_mention)
+
+        # Si se encontraron menciones, añadirlas a la sección
+        if attachment_mentions:
+            md_content += "## Archivos Adjuntos\n\n"
+            for file_name in attachment_mentions:
+                md_content += f"- **{file_name}** (mencionado en la conversación)\n"
+            md_content += "\n"
 
     return md_content
 
