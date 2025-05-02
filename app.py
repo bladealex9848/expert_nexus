@@ -42,7 +42,7 @@ APP_IDENTITY = {
     # Identidad principal
     "name": "Expert Nexus",
     "version": "1.0.0",
-    "icon": "🧠🔄",
+    "icon": "🔄",
     "tagline": "Múltiples Expertos, Una Sola Conversación",
     "full_title": "¡Bienvenido a Expert Nexus! 🧠🔄",
     # Información del desarrollador
