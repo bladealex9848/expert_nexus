@@ -24,7 +24,7 @@ git add .
 echo -e "${GREEN}Realizando commit con el mensaje: '$COMMIT_MESSAGE'...${NC}"
 git commit -m "$COMMIT_MESSAGE" --no-verify
 
-echo -e "${YELLOW}Subiendo cambios a la rama main...${NC}"
-git push origin main --no-verify
+echo -e "${YELLOW}Subiendo cambios a la rama clean-branch...${NC}"
+git push origin clean-branch --no-verify
 
 echo -e "${MAGENTA}¡Proceso completado con éxito!${NC}"
