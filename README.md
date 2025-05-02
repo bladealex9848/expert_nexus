@@ -39,6 +39,16 @@ La plataforma cuenta con expertos en áreas como transformación digital, inteli
 - **Reinicio de Sesión**: Opción para comenzar una nueva conversación cuando sea necesario
 - **Interfaz Adaptativa**: Elementos visuales que reflejan el cambio de contexto
 
+### 5. Procesamiento de Documentos
+- **Soporte para Múltiples Formatos**: Procesamiento de archivos PDF, texto, Markdown e imágenes
+- **Extracción de Texto**: Obtención automática del contenido textual de los documentos
+- **Contexto Enriquecido**: Incorporación del contenido de los documentos en la conversación
+
+### 6. Exportación de Conversaciones
+- **Múltiples Formatos**: Exportación en Markdown y PDF
+- **Preservación de Estructura**: Mantenimiento de la estructura y formato de la conversación
+- **Información Completa**: Inclusión de metadatos como fecha, experto y descripción
+
 ## 🚀 Instalación
 
 ### Requisitos Previos
@@ -70,6 +80,10 @@ La plataforma cuenta con expertos en áreas como transformación digital, inteli
 
 3. **Instalar las dependencias**
    ```bash
+   # Actualizar pip primero
+   pip install --upgrade pip
+
+   # Instalar dependencias
    pip install -r requirements.txt
    ```
 
@@ -234,6 +248,59 @@ Los scripts detectarán que el entorno virtual ya existe y te preguntarán si de
 - Sugerencias inteligentes para recomendar automáticamente el experto más adecuado
 - Opción para aceptar o rechazar la sugerencia de cambio de experto
 - Mejora de la precisión en la detección de temas mediante técnicas avanzadas de procesamiento de lenguaje natural
+
+## 📂 Estructura del Proyecto
+
+```
+expert_nexus/
+├── app.py                     # Archivo principal de la aplicación
+├── expert_selection.py        # Módulo para la selección de expertos
+├── assistants_config.py       # Configuración de los asistentes
+├── config_override.py         # Configuración personalizada
+├── requirements.txt           # Dependencias del proyecto
+├── CHANGELOG.md               # Registro de cambios
+├── README.md                  # Documentación principal
+├── LICENSE                    # Licencia del proyecto
+├── assets/                    # Recursos estáticos (imágenes, etc.)
+│   └── logo.png               # Logo de la aplicación
+├── .streamlit/                # Configuración de Streamlit
+│   └── secrets.toml           # Secretos de la aplicación (no incluido en el repositorio)
+└── tests/                     # Pruebas automatizadas
+    ├── README.md              # Documentación de las pruebas
+    ├── test_expert_selection.py  # Pruebas de selección de expertos
+    ├── test_app_integration.py   # Pruebas de integración
+    └── document_tests/        # Pruebas de procesamiento de documentos
+        ├── README.md          # Documentación de las pruebas de documentos
+        ├── test_document_context.py  # Pruebas de contexto de documentos
+        └── ...                # Otros archivos de prueba
+```
+
+## 📚 Glosario de Funciones
+
+### Funciones Principales (app.py)
+
+| Función | Descripción | Ubicación |
+|---------|-------------|-----------|
+| `rerun_app()` | Sistema multicapa para reiniciar la aplicación Streamlit | app.py |
+| `export_chat_to_pdf(messages)` | Exporta la conversación a formato PDF | app.py |
+| `export_chat_to_markdown(messages)` | Exporta la conversación a formato Markdown | app.py |
+| `process_markdown_file(file_data)` | Procesa un archivo Markdown y extrae su contenido | app.py |
+| `process_document_with_mistral_ocr(api_key, file_bytes, file_type, file_name)` | Procesa un documento con OCR usando Mistral AI | app.py |
+| `validate_file_format(file)` | Valida el formato de un archivo | app.py |
+| `clean_current_session()` | Limpia todos los recursos de la sesión actual | app.py |
+| `manage_document_context()` | Gestiona el contexto de documentos | app.py |
+| `verify_document_context()` | Verifica que los documentos estén correctamente procesados | app.py |
+| `process_message(message, expert_key)` | Procesa un mensaje con el experto especificado | app.py |
+
+### Funciones de Selección de Expertos (expert_selection.py)
+
+| Función | Descripción | Ubicación |
+|---------|-------------|-----------|
+| `detect_expert(message, keywords_dict)` | Analiza el texto y sugiere el experto más adecuado | expert_selection.py |
+| `change_expert(expert_key, reason, preserve_context)` | Cambia el experto actual | expert_selection.py |
+| `handle_expert_selection(user_text, suggested_expert, process_message_func)` | Maneja el flujo de selección de expertos | expert_selection.py |
+| `initialize_expert_selection_state()` | Inicializa las variables de estado para la selección | expert_selection.py |
+| `reset_expert_selection_state()` | Reinicia el estado de selección de expertos | expert_selection.py |
 
 ## 📊 Escenarios de Uso
 

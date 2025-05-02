@@ -104,7 +104,7 @@ APP_IDENTITY = {
 
     **Nota sobre privacidad**: Los documentos se procesan localmente y no se almacenan permanentemente.
 
-    **Formatos soportados**: PDF (.pdf), Texto (.txt), Imágenes (.jpg, .jpeg, .png). Otros formatos no serán procesados.
+    **Formatos soportados**: PDF (.pdf), Texto (.txt), Markdown (.md), Imágenes (.jpg, .jpeg, .png). Otros formatos no serán procesados.
     """,
     # Texto de la interfaz de usuario
     "chat_placeholder": "¿En qué puedo ayudarte hoy? Puedes cambiar manualmente de experto en la barra lateral.",
@@ -151,7 +151,7 @@ APP_IDENTITY = {
     "document_prefix": "expert_nexus",
     "conversation_export_name": "expert_nexus_conversacion",
     # Mensajes sobre formatos de archivo
-    "allowed_formats_message": "Formatos permitidos: PDF (.pdf), Texto (.txt), Imágenes (.jpg, .jpeg, .png)",
+    "allowed_formats_message": "Formatos permitidos: PDF (.pdf), Texto (.txt), Markdown (.md), Imágenes (.jpg, .jpeg, .png)",
 }
 
 # Configuración avanzada de logging - Implementación multi-destino
@@ -660,30 +660,144 @@ def export_chat_to_pdf(messages):
     """
     Sistema multicapa para exportación de conversaciones a PDF.
     Implementa múltiples estrategias de generación con manejo de fallos.
+
+    Ahora con soporte para conversión de Markdown a PDF usando WeasyPrint
+    basado en el proyecto MDPDFusion.
     """
     try:
-        # Método 1 (preferido): FPDF con manejo mejorado
-        return _export_chat_to_pdf_primary(messages)
+        # Método 0 (nuevo preferido): Markdown a PDF con WeasyPrint
+        return _export_chat_to_pdf_from_markdown(messages)
     except Exception as e:
-        logging.warning(f"Método primario de exportación a PDF falló: {str(e)}")
+        logging.warning(f"Método de conversión Markdown a PDF falló: {str(e)}")
         try:
-            # Método 2: ReportLab como alternativa
-            return _export_chat_to_pdf_secondary(messages)
-        except Exception as e2:
-            logging.warning(f"Método secundario de exportación a PDF falló: {str(e2)}")
+            # Método 1: FPDF con manejo mejorado
+            return _export_chat_to_pdf_primary(messages)
+        except Exception as e1:
+            logging.warning(f"Método primario de exportación a PDF falló: {str(e1)}")
             try:
-                # Método 3: Conversión simple como último recurso
-                return _export_chat_to_pdf_fallback(messages)
-            except Exception as e3:
-                logging.error(
-                    f"Todos los métodos de exportación a PDF fallaron: {str(e3)}"
-                )
-                # Último recurso: Devolver contenido en markdown codificado
-                md_content = export_chat_to_markdown(messages)
-                st.warning(
-                    "No fue posible generar un PDF. Se ha creado un archivo markdown en su lugar."
-                )
-                return base64.b64encode(md_content.encode()).decode(), "markdown"
+                # Método 2: ReportLab como alternativa
+                return _export_chat_to_pdf_secondary(messages)
+            except Exception as e2:
+                logging.warning(f"Método secundario de exportación a PDF falló: {str(e2)}")
+                try:
+                    # Método 3: Conversión simple como último recurso
+                    return _export_chat_to_pdf_fallback(messages)
+                except Exception as e3:
+                    logging.error(
+                        f"Todos los métodos de exportación a PDF fallaron: {str(e3)}"
+                    )
+                    # Último recurso: Devolver contenido en markdown codificado
+                    md_content = export_chat_to_markdown(messages)
+                    st.warning(
+                        "No fue posible generar un PDF. Se ha creado un archivo markdown en su lugar."
+                    )
+                    return base64.b64encode(md_content.encode()).decode(), "markdown"
+
+
+def _export_chat_to_pdf_from_markdown(messages):
+    """
+    Método basado en WeasyPrint para convertir Markdown a PDF.
+    Utiliza la técnica del proyecto MDPDFusion.
+    """
+    try:
+        # Importar las bibliotecas necesarias
+        import markdown
+        from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
+        import tempfile
+
+        # Generar el contenido Markdown
+        md_content = export_chat_to_markdown(messages)
+
+        # Convertir Markdown a HTML
+        html_content = markdown.markdown(
+            md_content,
+            extensions=[
+                'markdown.extensions.tables',
+                'markdown.extensions.fenced_code',
+                'markdown.extensions.codehilite',
+                'markdown.extensions.toc',
+                'markdown.extensions.nl2br'
+            ]
+        )
+
+        # Añadir estilos CSS para mejorar la apariencia
+        css_styles = """
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 2cm;
+            font-size: 12px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 20px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        code {
+            background-color: #f8f8f8;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 20px 0;
+        }
+        """
+
+        # Crear HTML completo con estilos
+        full_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>{APP_IDENTITY["conversation_export_name"]}</title>
+            <style>
+                {css_styles}
+            </style>
+        </head>
+        <body>
+            {html_content}
+        </body>
+        </html>
+        """
+
+        # Configurar fuentes
+        font_config = FontConfiguration()
+
+        # Crear PDF desde HTML
+        html = HTML(string=full_html)
+
+        # Crear un archivo temporal para el PDF
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            # Generar el PDF
+            html.write_pdf(
+                tmp.name,
+                font_config=font_config,
+                presentational_hints=True
+            )
+
+            # Leer el contenido del PDF
+            tmp.seek(0)
+            pdf_content = tmp.read()
+
+        return pdf_content, "pdf"
+
+    except Exception as e:
+        logging.error(f"Error en la conversión de Markdown a PDF: {str(e)}")
+        raise e
 
 
 def _export_chat_to_pdf_primary(messages):
@@ -1240,6 +1354,7 @@ ALLOWED_FILE_FORMATS = {
     "PDF": [".pdf"],
     "Imagen": [".jpg", ".jpeg", ".png"],
     "Texto": [".txt"],
+    "Markdown": [".md"],
     # "Word": [".docx"]  # Eliminado porque la API de Mistral no acepta documentos Word en base64
 }
 
@@ -1304,6 +1419,34 @@ def validate_file_format(file):
                 file.seek(position)  # Restaurar posición
                 return False, None, f"El archivo no es una imagen válida: {str(e)}"
 
+        elif file_type == "Markdown":
+            # Verificar que el archivo sea texto y contenga sintaxis markdown
+            try:
+                # Leer los primeros 1024 bytes para verificar que sea texto
+                content = file.read(1024).decode('utf-8', errors='ignore')
+                file.seek(position)  # Restaurar posición
+
+                # Verificación básica de sintaxis markdown (encabezados, listas, etc.)
+                has_markdown = False
+                if (
+                    re.search(r'^#{1,6}\s+', content, re.MULTILINE) or  # Encabezados
+                    re.search(r'^[-*+]\s+', content, re.MULTILINE) or   # Listas
+                    re.search(r'^\d+\.\s+', content, re.MULTILINE) or   # Listas numeradas
+                    re.search(r'\*\*.*?\*\*', content) or               # Negrita
+                    re.search(r'_.*?_', content) or                     # Cursiva
+                    re.search(r'\[.*?\]\(.*?\)', content) or            # Enlaces
+                    re.search(r'```', content) or                       # Bloques de código
+                    re.search(r'>\s+', content, re.MULTILINE)           # Citas
+                ):
+                    has_markdown = True
+
+                # Si no tiene sintaxis markdown pero es un archivo .md, lo aceptamos de todas formas
+                if not has_markdown:
+                    logging.info(f"El archivo {file.name} tiene extensión .md pero no se detectó sintaxis markdown clara")
+            except Exception as e:
+                file.seek(position)  # Restaurar posición
+                return False, None, f"Error al validar archivo Markdown: {str(e)}"
+
         # Eliminada la validación de archivos Word
 
     except Exception as e:
@@ -1337,6 +1480,8 @@ def detect_document_type(file):
             return "PDF"
         elif mime_type.startswith("image/"):
             return "Imagen"
+        elif mime_type in ["text/markdown", "text/x-markdown"]:
+            return "Markdown"
 
     # 2. Verificar por extensión del nombre
     if hasattr(file, "name"):
@@ -1345,6 +1490,8 @@ def detect_document_type(file):
             return "PDF"
         elif name.endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp")):
             return "Imagen"
+        elif name.endswith(".md"):
+            return "Markdown"
 
     # 3. Verificar contenido con análisis de bytes
     try:
@@ -1426,6 +1573,34 @@ def prepare_image_for_ocr(file_data):
     except Exception as e:
         logging.warning(f"Optimización de imagen fallida: {str(e)}")
         return file_data, "image/jpeg"  # Formato por defecto
+
+
+@handle_error(max_retries=1)
+def process_markdown_file(file_data):
+    """
+    Procesa un archivo Markdown y extrae su contenido como texto.
+
+    Parámetros:
+        file_data: Datos binarios del archivo Markdown
+
+    Retorno:
+        dict: Diccionario con el texto extraído
+    """
+    try:
+        # Decodificar el contenido del archivo
+        content = file_data.decode('utf-8', errors='ignore')
+
+        # Devolver el contenido como texto
+        return {
+            "text": content,
+            "format": "markdown"
+        }
+    except Exception as e:
+        logging.error(f"Error procesando archivo Markdown: {str(e)}")
+        return {
+            "text": f"Error al procesar el archivo Markdown: {str(e)}",
+            "format": "error"
+        }
 
 
 @handle_error(max_retries=1)
@@ -2523,8 +2698,7 @@ with st.sidebar:
 
     # Opciones de exportación de chat
     st.subheader("💾 Exportar Conversación")
-    # export_format = st.radio("Formato de exportación:", ("Markdown", "PDF"))
-    export_format = st.radio("Formato de exportación:", ("Markdown"))
+    export_format = st.radio("Formato de exportación:", ("Markdown", "PDF"))
 
     if st.button("Descargar conversación"):
         if "messages" in st.session_state and st.session_state.messages:
@@ -2960,7 +3134,7 @@ if prompt:
                     # Registrar información detallada para depuración
                     logging.info(f"Iniciando procesamiento de {file.name} (tipo: {file_type}, tamaño: {len(file_bytes)} bytes)")
 
-                    # Intentar extraer texto directamente para PDFs antes de OCR
+                    # Intentar extraer texto directamente para PDFs y Markdown antes de OCR
                     extracted_text = None
                     if file_type == "PDF":
                         try:
@@ -2975,6 +3149,15 @@ if prompt:
                                 extracted_text = {"text": pdf_text, "format": "pdf_direct"}
                         except Exception as pdf_error:
                             logging.warning(f"Error extrayendo texto directo del PDF: {str(pdf_error)}")
+                    elif file_type == "Markdown":
+                        try:
+                            # Procesar archivo Markdown
+                            markdown_text = process_markdown_file(file_bytes)
+                            if markdown_text and "text" in markdown_text:
+                                logging.info(f"Texto extraído del archivo Markdown {file.name}: {len(markdown_text['text'])} caracteres")
+                                extracted_text = markdown_text
+                        except Exception as md_error:
+                            logging.warning(f"Error procesando archivo Markdown: {str(md_error)}")
 
                     # Si no pudimos extraer texto directamente, usar OCR
                     if not extracted_text:
@@ -3036,6 +3219,11 @@ if prompt:
             # Procesar archivos PDF
             elif (file_name.lower().endswith('.pdf') and 'text' in content):
                 file_contents += f"\n\nContenido del PDF {file_name}:\n```\n{content['text'][:5000]}\n```"
+                if len(content['text']) > 5000:
+                    file_contents += "\n[Contenido truncado por longitud...]\n"
+            # Procesar archivos Markdown
+            elif (file_name.lower().endswith('.md') and 'text' in content):
+                file_contents += f"\n\nContenido del Markdown {file_name}:\n```markdown\n{content['text'][:5000]}\n```"
                 if len(content['text']) > 5000:
                     file_contents += "\n[Contenido truncado por longitud...]\n"
             # Procesar otros tipos de archivos con texto

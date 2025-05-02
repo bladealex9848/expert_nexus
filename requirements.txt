@@ -10,6 +10,9 @@ Pillow>=9.0.0                    # Procesamiento de imágenes
 PyPDF2>=3.0.0                    # Lectura y validación de PDFs
 markdown>=3.3.6                  # Para manejar markdown en exportaciones
 html2text>=2020.1.16             # Conversión de HTML a texto
+weasyprint>=60.0                 # Conversión de HTML a PDF
+fpdf2>=2.7.0                     # Generación de PDFs (método alternativo)
+reportlab>=4.0.0                 # Generación de PDFs (método alternativo)
 
 # Utilidades
 pandas>=1.3.0                    # Análisis de datos
