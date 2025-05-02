@@ -1146,8 +1146,9 @@ def export_chat_to_pdf(messages):
 
     Ahora con soporte para conversión de Markdown a PDF usando MDPDFusion.
     """
-    # Importar os explícitamente dentro de la función para evitar problemas de ámbito
+    # Importar módulos necesarios
     import os
+    import tempfile
 
     # Detectar si estamos en Streamlit Cloud
     is_streamlit_cloud = False
@@ -1190,8 +1191,6 @@ def export_chat_to_pdf(messages):
             md_content = export_chat_to_markdown(messages)
 
             # Guardar el contenido Markdown en un archivo temporal
-            import tempfile
-
             with tempfile.NamedTemporaryFile(suffix='.md', delete=False) as md_file:
                 md_file.write(md_content.encode('utf-8'))
                 md_path = md_file.name
@@ -1274,15 +1273,28 @@ def _export_chat_to_pdf_from_markdown(messages):
     """
     try:
         # Importar las bibliotecas necesarias
-        import markdown
-        from weasyprint import HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
+        import os
         import tempfile
         import re
         import base64
-        from pygments import highlight
-        from pygments.lexers import get_lexer_by_name, guess_lexer
-        from pygments.formatters import HtmlFormatter
+        import markdown
+
+        # Intentar importar WeasyPrint y sus dependencias
+        try:
+            from weasyprint import HTML, CSS
+            from weasyprint.text.fonts import FontConfiguration
+        except ImportError:
+            logging.warning("WeasyPrint no está disponible. No se puede usar el método avanzado de conversión.")
+            raise
+
+        # Intentar importar Pygments para resaltado de sintaxis
+        try:
+            from pygments import highlight
+            from pygments.lexers import get_lexer_by_name, guess_lexer
+            from pygments.formatters import HtmlFormatter
+        except ImportError:
+            logging.warning("Pygments no está disponible. El resaltado de sintaxis será limitado.")
+            raise
 
         # Generar el contenido Markdown
         md_content = export_chat_to_markdown(messages)
