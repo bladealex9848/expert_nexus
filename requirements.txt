@@ -13,6 +13,10 @@ html2text>=2020.1.16             # Conversión de HTML a texto
 weasyprint>=60.0                 # Conversión de HTML a PDF
 fpdf2>=2.7.0                     # Generación de PDFs (método alternativo)
 reportlab>=4.0.0                 # Generación de PDFs (método alternativo)
+pygments>=2.15.0                 # Resaltado de sintaxis para bloques de código
+pdfkit>=1.0.0                    # Alternativa para conversión HTML a PDF (compatible con Streamlit Cloud)
+markdown2>=2.4.0                 # Alternativa para procesamiento de Markdown
+pypandoc>=1.11                   # Conversión de Markdown a PDF (opcional, requiere pandoc instalado)
 
 # Utilidades
 pandas>=1.3.0                    # Análisis de datos

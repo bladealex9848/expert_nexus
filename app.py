@@ -656,108 +656,343 @@ def create_openai_client(api_key):
 
 
 # Sistema multicapa para exportación de conversaciones
-def export_chat_to_pdf(messages):
+def _export_chat_to_pdf_streamlit_cloud(messages):
     """
-    Sistema multicapa para exportación de conversaciones a PDF.
-    Implementa múltiples estrategias de generación con manejo de fallos.
-
-    Ahora con soporte para conversión de Markdown a PDF usando WeasyPrint
-    basado en el proyecto MDPDFusion.
+    Método optimizado para Streamlit Cloud usando pdfkit.
+    Esta implementación es compatible con el entorno de Streamlit Cloud
+    y no requiere dependencias del sistema.
     """
     try:
-        # Método 0 (nuevo preferido): Markdown a PDF con WeasyPrint
-        return _export_chat_to_pdf_from_markdown(messages)
-    except Exception as e:
-        logging.warning(f"Método de conversión Markdown a PDF falló: {str(e)}")
-        try:
-            # Método 1: FPDF con manejo mejorado
-            return _export_chat_to_pdf_primary(messages)
-        except Exception as e1:
-            logging.warning(f"Método primario de exportación a PDF falló: {str(e1)}")
-            try:
-                # Método 2: ReportLab como alternativa
-                return _export_chat_to_pdf_secondary(messages)
-            except Exception as e2:
-                logging.warning(f"Método secundario de exportación a PDF falló: {str(e2)}")
-                try:
-                    # Método 3: Conversión simple como último recurso
-                    return _export_chat_to_pdf_fallback(messages)
-                except Exception as e3:
-                    logging.error(
-                        f"Todos los métodos de exportación a PDF fallaron: {str(e3)}"
-                    )
-                    # Último recurso: Devolver contenido en markdown codificado
-                    md_content = export_chat_to_markdown(messages)
-                    st.warning(
-                        "No fue posible generar un PDF. Se ha creado un archivo markdown en su lugar."
-                    )
-                    return base64.b64encode(md_content.encode()).decode(), "markdown"
-
-
-def _export_chat_to_pdf_from_markdown(messages):
-    """
-    Método basado en WeasyPrint para convertir Markdown a PDF.
-    Utiliza la técnica del proyecto MDPDFusion.
-    """
-    try:
-        # Importar las bibliotecas necesarias
-        import markdown
-        from weasyprint import HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
+        import pdfkit
+        import markdown2
         import tempfile
+        from pygments import highlight
+        from pygments.lexers import get_lexer_by_name, guess_lexer
+        from pygments.formatters import HtmlFormatter
+        import re
 
         # Generar el contenido Markdown
         md_content = export_chat_to_markdown(messages)
 
-        # Convertir Markdown a HTML
-        html_content = markdown.markdown(
+        # Preprocesar el contenido Markdown para manejar casos especiales
+
+        # 1. Preservar diagramas ASCII
+        ascii_diagrams = []
+
+        def preserve_ascii_diagram(match):
+            diagram = match.group(1)
+            ascii_diagrams.append(diagram)
+            return f"\n\n```ascii-diagram-{len(ascii_diagrams)-1}\n{diagram}\n```\n\n"
+
+        # Detectar diagramas ASCII (bloques con caracteres como │, ┌, └, ┐, ┘, ─, etc.)
+        ascii_pattern = r"```(?:ascii|diagram)?\n((?:[^\n]*?[│┌└┐┘─┬┴┼┤├]+[^\n]*\n)+)```"
+        md_content = re.sub(ascii_pattern, preserve_ascii_diagram, md_content)
+
+        # 2. Manejar bloques de código con resaltado de sintaxis personalizado
+        code_blocks = []
+
+        def process_code_block(match):
+            language = match.group(1) or ""
+            code = match.group(2)
+
+            # Guardar el bloque de código para procesamiento posterior
+            code_blocks.append((language.strip(), code))
+            return f"\n\n{{code-block-{len(code_blocks)-1}}}\n\n"
+
+        # Extraer bloques de código
+        md_content = re.sub(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", process_code_block, md_content, flags=re.DOTALL)
+
+        # 3. Convertir Markdown a HTML con markdown2 (más compatible con Streamlit Cloud)
+        html_content = markdown2.markdown(
             md_content,
-            extensions=[
-                'markdown.extensions.tables',
-                'markdown.extensions.fenced_code',
-                'markdown.extensions.codehilite',
-                'markdown.extensions.toc',
-                'markdown.extensions.nl2br'
+            extras=[
+                "tables",
+                "fenced-code-blocks",
+                "code-friendly",
+                "toc",
+                "break-on-newline",
+                "smarty-pants",
+                "cuddled-lists",
+                "footnotes"
             ]
         )
 
-        # Añadir estilos CSS para mejorar la apariencia
+        # 4. Reemplazar los marcadores de código con HTML resaltado
+        for i, (language, code) in enumerate(code_blocks):
+            try:
+                # Manejar diagramas ASCII preservados
+                if language.startswith("ascii-diagram-"):
+                    idx = int(language.split("-")[-1])
+                    html_code = f'<pre class="ascii-diagram"><code>{ascii_diagrams[idx]}</code></pre>'
+                else:
+                    # Resaltar código con Pygments
+                    if language and language != "text":
+                        try:
+                            lexer = get_lexer_by_name(language)
+                        except:
+                            lexer = guess_lexer(code)
+                    else:
+                        lexer = guess_lexer(code)
+
+                    formatter = HtmlFormatter(style='default', cssclass='codehilite')
+                    html_code = highlight(code, lexer, formatter)
+            except Exception as e:
+                # Si falla el resaltado, usar un bloque de código simple
+                html_code = f'<pre><code>{code}</code></pre>'
+
+            html_content = html_content.replace(f"{{code-block-{i}}}", html_code)
+
+        # 5. Añadir estilos CSS avanzados para mejorar la apariencia
         css_styles = """
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
+            font-size: 11pt;
+            color: #333;
+            max-width: 100%;
             margin: 2cm;
-            font-size: 12px;
+            overflow-wrap: break-word;
         }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            line-height: 1.25;
+        }
+
         h1 {
-            color: #2c3e50;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
+            font-size: 2em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #eaecef;
+            color: #24292e;
         }
+
         h2 {
-            color: #3498db;
-            margin-top: 20px;
+            font-size: 1.5em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #eaecef;
+            color: #24292e;
         }
-        pre {
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            padding: 10px;
-            overflow-x: auto;
+
+        h3 {
+            font-size: 1.25em;
+            color: #24292e;
         }
+
+        h4 {
+            font-size: 1em;
+            color: #24292e;
+        }
+
+        p, ul, ol, dl, table, pre {
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        ul, ol {
+            padding-left: 2em;
+        }
+
+        li + li {
+            margin-top: 0.25em;
+        }
+
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            width: 100%;
+            overflow: auto;
+            margin-bottom: 16px;
+        }
+
+        table th {
+            font-weight: 600;
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+            background-color: #f6f8fa;
+        }
+
+        table td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+        }
+
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            box-sizing: content-box;
+            background-color: #fff;
+        }
+
         code {
-            background-color: #f8f8f8;
-            padding: 2px 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27, 31, 35, 0.05);
             border-radius: 3px;
         }
+
+        pre {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            word-wrap: normal;
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            margin-bottom: 16px;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            margin: 0;
+            font-size: inherit;
+            word-break: normal;
+            white-space: pre;
+            overflow: visible;
+        }
+
+        .codehilite {
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            padding: 16px;
+            overflow: auto;
+        }
+
+        .codehilite .hll { background-color: #ffffcc }
+        .codehilite .c { color: #999988; font-style: italic } /* Comment */
+        .codehilite .err { color: #a61717; background-color: #e3d2d2 } /* Error */
+        .codehilite .k { color: #000000; font-weight: bold } /* Keyword */
+        .codehilite .o { color: #000000; font-weight: bold } /* Operator */
+        .codehilite .cm { color: #999988; font-style: italic } /* Comment.Multiline */
+        .codehilite .cp { color: #999999; font-weight: bold; font-style: italic } /* Comment.Preproc */
+        .codehilite .c1 { color: #999988; font-style: italic } /* Comment.Single */
+        .codehilite .cs { color: #999999; font-weight: bold; font-style: italic } /* Comment.Special */
+        .codehilite .gd { color: #000000; background-color: #ffdddd } /* Generic.Deleted */
+        .codehilite .ge { color: #000000; font-style: italic } /* Generic.Emph */
+        .codehilite .gr { color: #aa0000 } /* Generic.Error */
+        .codehilite .gh { color: #999999 } /* Generic.Heading */
+        .codehilite .gi { color: #000000; background-color: #ddffdd } /* Generic.Inserted */
+        .codehilite .go { color: #888888 } /* Generic.Output */
+        .codehilite .gp { color: #555555 } /* Generic.Prompt */
+        .codehilite .gs { font-weight: bold } /* Generic.Strong */
+        .codehilite .gu { color: #aaaaaa } /* Generic.Subheading */
+        .codehilite .gt { color: #aa0000 } /* Generic.Traceback */
+        .codehilite .kc { color: #000000; font-weight: bold } /* Keyword.Constant */
+        .codehilite .kd { color: #000000; font-weight: bold } /* Keyword.Declaration */
+        .codehilite .kn { color: #000000; font-weight: bold } /* Keyword.Namespace */
+        .codehilite .kp { color: #000000; font-weight: bold } /* Keyword.Pseudo */
+        .codehilite .kr { color: #000000; font-weight: bold } /* Keyword.Reserved */
+        .codehilite .kt { color: #445588; font-weight: bold } /* Keyword.Type */
+        .codehilite .m { color: #009999 } /* Literal.Number */
+        .codehilite .s { color: #d01040 } /* Literal.String */
+        .codehilite .na { color: #008080 } /* Name.Attribute */
+        .codehilite .nb { color: #0086B3 } /* Name.Builtin */
+        .codehilite .nc { color: #445588; font-weight: bold } /* Name.Class */
+        .codehilite .no { color: #008080 } /* Name.Constant */
+        .codehilite .nd { color: #3c5d5d; font-weight: bold } /* Name.Decorator */
+        .codehilite .ni { color: #800080 } /* Name.Entity */
+        .codehilite .ne { color: #990000; font-weight: bold } /* Name.Exception */
+        .codehilite .nf { color: #990000; font-weight: bold } /* Name.Function */
+        .codehilite .nl { color: #990000; font-weight: bold } /* Name.Label */
+        .codehilite .nn { color: #555555 } /* Name.Namespace */
+        .codehilite .nt { color: #000080 } /* Name.Tag */
+        .codehilite .nv { color: #008080 } /* Name.Variable */
+        .codehilite .ow { color: #000000; font-weight: bold } /* Operator.Word */
+        .codehilite .w { color: #bbbbbb } /* Text.Whitespace */
+        .codehilite .mf { color: #009999 } /* Literal.Number.Float */
+        .codehilite .mh { color: #009999 } /* Literal.Number.Hex */
+        .codehilite .mi { color: #009999 } /* Literal.Number.Integer */
+        .codehilite .mo { color: #009999 } /* Literal.Number.Oct */
+        .codehilite .sb { color: #d01040 } /* Literal.String.Backtick */
+        .codehilite .sc { color: #d01040 } /* Literal.String.Char */
+        .codehilite .sd { color: #d01040 } /* Literal.String.Doc */
+        .codehilite .s2 { color: #d01040 } /* Literal.String.Double */
+        .codehilite .se { color: #d01040 } /* Literal.String.Escape */
+        .codehilite .sh { color: #d01040 } /* Literal.String.Heredoc */
+        .codehilite .si { color: #d01040 } /* Literal.String.Interpol */
+        .codehilite .sx { color: #d01040 } /* Literal.String.Other */
+        .codehilite .sr { color: #009926 } /* Literal.String.Regex */
+        .codehilite .s1 { color: #d01040 } /* Literal.String.Single */
+        .codehilite .ss { color: #990073 } /* Literal.String.Symbol */
+        .codehilite .bp { color: #999999 } /* Name.Builtin.Pseudo */
+        .codehilite .vc { color: #008080 } /* Name.Variable.Class */
+        .codehilite .vg { color: #008080 } /* Name.Variable.Global */
+        .codehilite .vi { color: #008080 } /* Name.Variable.Instance */
+        .codehilite .il { color: #009999 } /* Literal.Number.Integer.Long */
+
+        .ascii-diagram {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            line-height: 1.2;
+            white-space: pre;
+            background-color: #f6f8fa;
+            padding: 16px;
+            border-radius: 3px;
+        }
+
+        blockquote {
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 0.25em solid #dfe2e5;
+            margin: 0 0 16px 0;
+        }
+
         hr {
-            border: none;
-            border-top: 1px solid #eee;
-            margin: 20px 0;
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #e1e4e8;
+            border: 0;
+        }
+
+        .footnote {
+            font-size: 0.8em;
+            color: #6a737d;
+        }
+
+        /* Estilos específicos para la conversación */
+        .message {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .user-message {
+            background-color: #f1f8ff;
+            border-left: 4px solid #0366d6;
+        }
+
+        .assistant-message {
+            background-color: #f6f8fa;
+            border-left: 4px solid #28a745;
+        }
+
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #24292e;
+        }
+
+        .timestamp {
+            font-size: 0.8em;
+            color: #6a737d;
         }
         """
 
-        # Crear HTML completo con estilos
+        # 6. Crear HTML completo con estilos
         full_html = f"""
         <!DOCTYPE html>
         <html>
@@ -769,18 +1004,680 @@ def _export_chat_to_pdf_from_markdown(messages):
             </style>
         </head>
         <body>
+            <h1>{APP_IDENTITY["conversation_export_name"]}</h1>
+            <p class="timestamp">Exportado el {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+            <hr>
             {html_content}
         </body>
         </html>
         """
 
-        # Configurar fuentes
+        # 7. Crear un archivo temporal para el HTML
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as html_file:
+            html_file.write(full_html.encode('utf-8'))
+            html_path = html_file.name
+
+        # 8. Configurar opciones para pdfkit
+        options = {
+            'page-size': 'A4',
+            'margin-top': '2cm',
+            'margin-right': '2cm',
+            'margin-bottom': '2cm',
+            'margin-left': '2cm',
+            'encoding': 'UTF-8',
+            'no-outline': None,
+            'enable-local-file-access': None
+        }
+
+        # 9. Crear un archivo temporal para el PDF
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as pdf_file:
+            pdf_path = pdf_file.name
+
+        # 10. Convertir HTML a PDF usando pdfkit o métodos alternativos
+        pdf_generated = False
+
+        # Método 1: Intentar usar pdfkit con wkhtmltopdf del sistema
+        try:
+            pdfkit.from_file(html_path, pdf_path, options=options)
+            pdf_generated = True
+            logging.info("PDF generado con pdfkit usando wkhtmltopdf del sistema")
+        except Exception as e:
+            logging.warning(f"Error al usar wkhtmltopdf del sistema: {str(e)}")
+
+            # Método 2: Intentar usar pdfkit con wkhtmltopdf en ubicaciones alternativas
+            try:
+                import os
+                import platform
+
+                # Diferentes ubicaciones según el sistema operativo
+                wkhtmltopdf_path = None
+                system = platform.system().lower()
+
+                if system == 'darwin':  # macOS
+                    possible_paths = [
+                        '/usr/local/bin/wkhtmltopdf',
+                        '/opt/homebrew/bin/wkhtmltopdf',
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin', 'wkhtmltopdf')
+                    ]
+                elif system == 'linux':
+                    possible_paths = [
+                        '/usr/bin/wkhtmltopdf',
+                        '/usr/local/bin/wkhtmltopdf',
+                        '/app/.heroku/python/bin/wkhtmltopdf',  # Streamlit Cloud
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin', 'wkhtmltopdf')
+                    ]
+                else:  # Windows
+                    possible_paths = [
+                        'C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe',
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin', 'wkhtmltopdf.exe')
+                    ]
+
+                # Probar cada ubicación
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        wkhtmltopdf_path = path
+                        logging.info(f"wkhtmltopdf encontrado en: {path}")
+                        break
+
+                if wkhtmltopdf_path:
+                    config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+                    pdfkit.from_file(html_path, pdf_path, options=options, configuration=config)
+                    pdf_generated = True
+                    logging.info(f"PDF generado con pdfkit usando wkhtmltopdf en: {wkhtmltopdf_path}")
+                else:
+                    logging.warning("No se encontró wkhtmltopdf en ninguna ubicación conocida")
+            except Exception as e2:
+                logging.warning(f"Error al usar wkhtmltopdf alternativo: {str(e2)}")
+
+            # Método 3: Usar un método alternativo si pdfkit falló
+            if not pdf_generated:
+                try:
+                    # Intentar usar FPDF para convertir el HTML a PDF
+                    from fpdf import FPDF
+                    import html2text
+
+                    # Convertir HTML a texto plano
+                    h = html2text.HTML2Text()
+                    h.ignore_links = False
+                    text_content = h.handle(full_html)
+
+                    # Crear PDF con FPDF
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", size=12)
+
+                    # Dividir el texto en líneas y añadirlas al PDF
+                    for line in text_content.split('\n'):
+                        if line.strip():
+                            pdf.multi_cell(0, 10, line)
+
+                    # Guardar el PDF
+                    pdf.output(pdf_path)
+                    pdf_generated = True
+                    logging.info("PDF generado con FPDF como alternativa")
+                except Exception as e3:
+                    logging.warning(f"Error al usar FPDF como alternativa: {str(e3)}")
+
+                    # Si todo lo anterior falló, lanzar la excepción original
+                    if not pdf_generated:
+                        raise e
+
+        # 11. Leer el contenido del PDF
+        with open(pdf_path, 'rb') as f:
+            pdf_content = f.read()
+
+        # 12. Limpiar archivos temporales
+        try:
+            os.unlink(html_path)
+            os.unlink(pdf_path)
+        except Exception as e:
+            logging.warning(f"Error al eliminar archivos temporales: {str(e)}")
+
+        return pdf_content, "pdf"
+
+    except Exception as e:
+        logging.error(f"Error en la conversión de Markdown a PDF con pdfkit: {str(e)}")
+        raise e
+
+def export_chat_to_pdf(messages):
+    """
+    Sistema multicapa para exportación de conversaciones a PDF.
+    Implementa múltiples estrategias de generación con manejo de fallos.
+
+    Ahora con soporte para conversión de Markdown a PDF usando MDPDFusion.
+    """
+    # Importar os explícitamente dentro de la función para evitar problemas de ámbito
+    import os
+
+    # Detectar si estamos en Streamlit Cloud
+    is_streamlit_cloud = False
+    if os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit_cloud':
+        is_streamlit_cloud = True
+        logging.info("Detectado entorno Streamlit Cloud")
+
+    # Verificar si MDPDFusion está disponible
+    mdpdfusion_available = False
+    try:
+        from mdpdfusion import convert_md_to_pdf
+        mdpdfusion_available = True
+        logging.info("MDPDFusion disponible para exportación a PDF")
+    except ImportError:
+        logging.info("MDPDFusion no disponible, se usarán métodos alternativos")
+
+    # Verificar dependencias necesarias para los diferentes métodos
+    pdfkit_available = False
+    try:
+        import pdfkit
+        pdfkit_available = True
+        logging.info("pdfkit disponible para exportación a PDF")
+    except ImportError:
+        logging.info("pdfkit no disponible")
+
+    markdown2_available = False
+    try:
+        import markdown2
+        markdown2_available = True
+        logging.info("markdown2 disponible para exportación a PDF")
+    except ImportError:
+        logging.info("markdown2 no disponible")
+
+    # Método MDPDFusion (primera opción)
+    if mdpdfusion_available:
+        try:
+            logging.info("Usando método MDPDFusion para exportación a PDF")
+
+            # Generar el contenido Markdown
+            md_content = export_chat_to_markdown(messages)
+
+            # Guardar el contenido Markdown en un archivo temporal
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(suffix='.md', delete=False) as md_file:
+                md_file.write(md_content.encode('utf-8'))
+                md_path = md_file.name
+
+            # Crear un directorio temporal para el PDF
+            temp_dir = tempfile.mkdtemp()
+
+            # Convertir el archivo Markdown a PDF
+            output_pdf = convert_md_to_pdf(md_path, temp_dir)
+
+            # Leer el contenido del PDF
+            if output_pdf and os.path.exists(output_pdf):
+                with open(output_pdf, 'rb') as pdf_file:
+                    pdf_content = pdf_file.read()
+
+                # Limpiar archivos temporales
+                os.unlink(md_path)
+                os.unlink(output_pdf)
+                os.rmdir(temp_dir)
+
+                logging.info("Conversión exitosa con MDPDFusion")
+                return pdf_content, "pdf"
+            else:
+                logging.warning("MDPDFusion no generó un archivo PDF válido")
+        except Exception as e:
+            logging.warning(f"Método MDPDFusion falló: {str(e)}")
+
+    # Método optimizado para Streamlit Cloud
+    if is_streamlit_cloud and pdfkit_available and markdown2_available:
+        try:
+            logging.info("Usando método pdfkit optimizado para Streamlit Cloud")
+            return _export_chat_to_pdf_streamlit_cloud(messages)
+        except Exception as e:
+            logging.warning(f"Método pdfkit para Streamlit Cloud falló: {str(e)}")
+
+    # Intentar con pdfkit como método principal en entorno local
+    if pdfkit_available and markdown2_available:
+        try:
+            logging.info("Intentando método pdfkit como método principal")
+            return _export_chat_to_pdf_streamlit_cloud(messages)
+        except Exception as e:
+            logging.warning(f"Método pdfkit falló: {str(e)}")
+
+    # Métodos alternativos que no dependen de bibliotecas del sistema
+    try:
+        # Método 1: FPDF con manejo mejorado
+        logging.info("Intentando método FPDF para exportación a PDF")
+        return _export_chat_to_pdf_primary(messages)
+    except Exception as e1:
+        logging.warning(f"Método FPDF falló: {str(e1)}")
+        try:
+            # Método 2: ReportLab como alternativa
+            logging.info("Intentando método ReportLab para exportación a PDF")
+            return _export_chat_to_pdf_secondary(messages)
+        except Exception as e2:
+            logging.warning(f"Método ReportLab falló: {str(e2)}")
+            try:
+                # Método 3: Conversión simple como último recurso
+                logging.info("Intentando método de respaldo simple para exportación a PDF")
+                return _export_chat_to_pdf_fallback(messages)
+            except Exception as e3:
+                logging.error(f"Todos los métodos de exportación a PDF fallaron: {str(e3)}")
+                # Último recurso: Devolver contenido en markdown codificado
+                logging.info("Fallback a exportación Markdown")
+                md_content = export_chat_to_markdown(messages)
+                st.warning("No fue posible generar un PDF. Se ha creado un archivo markdown en su lugar.")
+                return base64.b64encode(md_content.encode()).decode(), "markdown"
+
+
+def _export_chat_to_pdf_from_markdown(messages):
+    """
+    Método avanzado basado en WeasyPrint para convertir Markdown a PDF.
+    Utiliza la técnica del proyecto MDPDFusion con soporte mejorado para:
+    - Sintaxis Markdown completa
+    - Bloques de código con resaltado de sintaxis
+    - Tablas con formato visual adecuado
+    - Enlaces internos funcionales
+    - Imágenes con ajuste automático
+    - Diagramas ASCII preservados
+    """
+    try:
+        # Importar las bibliotecas necesarias
+        import markdown
+        from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
+        import tempfile
+        import re
+        import base64
+        from pygments import highlight
+        from pygments.lexers import get_lexer_by_name, guess_lexer
+        from pygments.formatters import HtmlFormatter
+
+        # Generar el contenido Markdown
+        md_content = export_chat_to_markdown(messages)
+
+        # Preprocesar el contenido Markdown para manejar casos especiales
+
+        # 1. Preservar diagramas ASCII
+        ascii_diagrams = []
+
+        def preserve_ascii_diagram(match):
+            diagram = match.group(1)
+            ascii_diagrams.append(diagram)
+            return f"\n\n```ascii-diagram-{len(ascii_diagrams)-1}\n{diagram}\n```\n\n"
+
+        # Detectar diagramas ASCII (bloques con caracteres como │, ┌, └, ┐, ┘, ─, etc.)
+        ascii_pattern = r"```(?:ascii|diagram)?\n((?:[^\n]*?[│┌└┐┘─┬┴┼┤├]+[^\n]*\n)+)```"
+        md_content = re.sub(ascii_pattern, preserve_ascii_diagram, md_content)
+
+        # 2. Manejar bloques de código con resaltado de sintaxis personalizado
+        code_blocks = []
+
+        def process_code_block(match):
+            language = match.group(1) or ""
+            code = match.group(2)
+
+            # Guardar el bloque de código para procesamiento posterior
+            code_blocks.append((language.strip(), code))
+            return f"\n\n{{code-block-{len(code_blocks)-1}}}\n\n"
+
+        # Extraer bloques de código
+        md_content = re.sub(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", process_code_block, md_content, flags=re.DOTALL)
+
+        # 3. Convertir Markdown a HTML con extensiones avanzadas
+        # Definir las extensiones básicas que siempre están disponibles
+        extensions = [
+            'markdown.extensions.tables',
+            'markdown.extensions.fenced_code',
+            'markdown.extensions.codehilite',
+            'markdown.extensions.toc',
+            'markdown.extensions.nl2br'
+        ]
+
+        # Intentar añadir extensiones adicionales si están disponibles
+        try:
+            import importlib
+            additional_extensions = [
+                'markdown.extensions.sane_lists',
+                'markdown.extensions.smarty',
+                'markdown.extensions.attr_list',
+                'markdown.extensions.def_list',
+                'markdown.extensions.abbr',
+                'markdown.extensions.footnotes',
+                'markdown.extensions.md_in_html'
+            ]
+
+            # Verificar cada extensión antes de añadirla
+            for ext in additional_extensions:
+                try:
+                    importlib.import_module(ext)
+                    extensions.append(ext)
+                except ImportError:
+                    logging.warning(f"Extensión Markdown no disponible: {ext}")
+        except Exception as e:
+            logging.warning(f"Error al cargar extensiones adicionales de Markdown: {str(e)}")
+
+        # Convertir Markdown a HTML con las extensiones disponibles
+        html_content = markdown.markdown(
+            md_content,
+            extensions=extensions,
+            extension_configs={
+                'markdown.extensions.codehilite': {
+                    'linenums': False,
+                    'guess_lang': False
+                }
+            }
+        )
+
+        # 4. Reemplazar los marcadores de código con HTML resaltado
+        for i, (language, code) in enumerate(code_blocks):
+            try:
+                # Manejar diagramas ASCII preservados
+                if language.startswith("ascii-diagram-"):
+                    idx = int(language.split("-")[-1])
+                    html_code = f'<pre class="ascii-diagram"><code>{ascii_diagrams[idx]}</code></pre>'
+                else:
+                    # Resaltar código con Pygments
+                    if language and language != "text":
+                        try:
+                            lexer = get_lexer_by_name(language)
+                        except:
+                            lexer = guess_lexer(code)
+                    else:
+                        lexer = guess_lexer(code)
+
+                    formatter = HtmlFormatter(style='default', cssclass='codehilite')
+                    html_code = highlight(code, lexer, formatter)
+            except Exception as e:
+                # Si falla el resaltado, usar un bloque de código simple
+                html_code = f'<pre><code>{code}</code></pre>'
+
+            html_content = html_content.replace(f"{{code-block-{i}}}", html_code)
+
+        # 5. Añadir estilos CSS avanzados para mejorar la apariencia
+        css_styles = """
+        @page {
+            margin: 2cm;
+            @top-right {
+                content: "Expert Nexus";
+                font-size: 9pt;
+                color: #888;
+            }
+            @bottom-center {
+                content: counter(page);
+                font-size: 9pt;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            font-size: 11pt;
+            color: #333;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            line-height: 1.25;
+        }
+
+        h1 {
+            font-size: 2em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #eaecef;
+            color: #24292e;
+        }
+
+        h2 {
+            font-size: 1.5em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #eaecef;
+            color: #24292e;
+        }
+
+        h3 {
+            font-size: 1.25em;
+            color: #24292e;
+        }
+
+        h4 {
+            font-size: 1em;
+            color: #24292e;
+        }
+
+        p, ul, ol, dl, table, pre {
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        ul, ol {
+            padding-left: 2em;
+        }
+
+        li + li {
+            margin-top: 0.25em;
+        }
+
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            width: 100%;
+            overflow: auto;
+            margin-bottom: 16px;
+        }
+
+        table th {
+            font-weight: 600;
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+            background-color: #f6f8fa;
+        }
+
+        table td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+        }
+
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            box-sizing: content-box;
+            background-color: #fff;
+        }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27, 31, 35, 0.05);
+            border-radius: 3px;
+        }
+
+        pre {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            word-wrap: normal;
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            margin-bottom: 16px;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            margin: 0;
+            font-size: inherit;
+            word-break: normal;
+            white-space: pre;
+            overflow: visible;
+        }
+
+        .codehilite {
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            padding: 16px;
+            overflow: auto;
+        }
+
+        .codehilite .hll { background-color: #ffffcc }
+        .codehilite .c { color: #999988; font-style: italic } /* Comment */
+        .codehilite .err { color: #a61717; background-color: #e3d2d2 } /* Error */
+        .codehilite .k { color: #000000; font-weight: bold } /* Keyword */
+        .codehilite .o { color: #000000; font-weight: bold } /* Operator */
+        .codehilite .cm { color: #999988; font-style: italic } /* Comment.Multiline */
+        .codehilite .cp { color: #999999; font-weight: bold; font-style: italic } /* Comment.Preproc */
+        .codehilite .c1 { color: #999988; font-style: italic } /* Comment.Single */
+        .codehilite .cs { color: #999999; font-weight: bold; font-style: italic } /* Comment.Special */
+        .codehilite .gd { color: #000000; background-color: #ffdddd } /* Generic.Deleted */
+        .codehilite .ge { color: #000000; font-style: italic } /* Generic.Emph */
+        .codehilite .gr { color: #aa0000 } /* Generic.Error */
+        .codehilite .gh { color: #999999 } /* Generic.Heading */
+        .codehilite .gi { color: #000000; background-color: #ddffdd } /* Generic.Inserted */
+        .codehilite .go { color: #888888 } /* Generic.Output */
+        .codehilite .gp { color: #555555 } /* Generic.Prompt */
+        .codehilite .gs { font-weight: bold } /* Generic.Strong */
+        .codehilite .gu { color: #aaaaaa } /* Generic.Subheading */
+        .codehilite .gt { color: #aa0000 } /* Generic.Traceback */
+        .codehilite .kc { color: #000000; font-weight: bold } /* Keyword.Constant */
+        .codehilite .kd { color: #000000; font-weight: bold } /* Keyword.Declaration */
+        .codehilite .kn { color: #000000; font-weight: bold } /* Keyword.Namespace */
+        .codehilite .kp { color: #000000; font-weight: bold } /* Keyword.Pseudo */
+        .codehilite .kr { color: #000000; font-weight: bold } /* Keyword.Reserved */
+        .codehilite .kt { color: #445588; font-weight: bold } /* Keyword.Type */
+        .codehilite .m { color: #009999 } /* Literal.Number */
+        .codehilite .s { color: #d01040 } /* Literal.String */
+        .codehilite .na { color: #008080 } /* Name.Attribute */
+        .codehilite .nb { color: #0086B3 } /* Name.Builtin */
+        .codehilite .nc { color: #445588; font-weight: bold } /* Name.Class */
+        .codehilite .no { color: #008080 } /* Name.Constant */
+        .codehilite .nd { color: #3c5d5d; font-weight: bold } /* Name.Decorator */
+        .codehilite .ni { color: #800080 } /* Name.Entity */
+        .codehilite .ne { color: #990000; font-weight: bold } /* Name.Exception */
+        .codehilite .nf { color: #990000; font-weight: bold } /* Name.Function */
+        .codehilite .nl { color: #990000; font-weight: bold } /* Name.Label */
+        .codehilite .nn { color: #555555 } /* Name.Namespace */
+        .codehilite .nt { color: #000080 } /* Name.Tag */
+        .codehilite .nv { color: #008080 } /* Name.Variable */
+        .codehilite .ow { color: #000000; font-weight: bold } /* Operator.Word */
+        .codehilite .w { color: #bbbbbb } /* Text.Whitespace */
+        .codehilite .mf { color: #009999 } /* Literal.Number.Float */
+        .codehilite .mh { color: #009999 } /* Literal.Number.Hex */
+        .codehilite .mi { color: #009999 } /* Literal.Number.Integer */
+        .codehilite .mo { color: #009999 } /* Literal.Number.Oct */
+        .codehilite .sb { color: #d01040 } /* Literal.String.Backtick */
+        .codehilite .sc { color: #d01040 } /* Literal.String.Char */
+        .codehilite .sd { color: #d01040 } /* Literal.String.Doc */
+        .codehilite .s2 { color: #d01040 } /* Literal.String.Double */
+        .codehilite .se { color: #d01040 } /* Literal.String.Escape */
+        .codehilite .sh { color: #d01040 } /* Literal.String.Heredoc */
+        .codehilite .si { color: #d01040 } /* Literal.String.Interpol */
+        .codehilite .sx { color: #d01040 } /* Literal.String.Other */
+        .codehilite .sr { color: #009926 } /* Literal.String.Regex */
+        .codehilite .s1 { color: #d01040 } /* Literal.String.Single */
+        .codehilite .ss { color: #990073 } /* Literal.String.Symbol */
+        .codehilite .bp { color: #999999 } /* Name.Builtin.Pseudo */
+        .codehilite .vc { color: #008080 } /* Name.Variable.Class */
+        .codehilite .vg { color: #008080 } /* Name.Variable.Global */
+        .codehilite .vi { color: #008080 } /* Name.Variable.Instance */
+        .codehilite .il { color: #009999 } /* Literal.Number.Integer.Long */
+
+        .ascii-diagram {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            line-height: 1.2;
+            white-space: pre;
+            background-color: #f6f8fa;
+            padding: 16px;
+            border-radius: 3px;
+        }
+
+        blockquote {
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 0.25em solid #dfe2e5;
+            margin: 0 0 16px 0;
+        }
+
+        hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #e1e4e8;
+            border: 0;
+        }
+
+        .footnote {
+            font-size: 0.8em;
+            color: #6a737d;
+        }
+
+        /* Estilos específicos para la conversación */
+        .message {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .user-message {
+            background-color: #f1f8ff;
+            border-left: 4px solid #0366d6;
+        }
+
+        .assistant-message {
+            background-color: #f6f8fa;
+            border-left: 4px solid #28a745;
+        }
+
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #24292e;
+        }
+
+        .timestamp {
+            font-size: 0.8em;
+            color: #6a737d;
+        }
+        """
+
+        # 6. Crear HTML completo con estilos
+        full_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>{APP_IDENTITY["conversation_export_name"]}</title>
+            <style>
+                {css_styles}
+            </style>
+        </head>
+        <body>
+            <h1>{APP_IDENTITY["conversation_export_name"]}</h1>
+            <p class="timestamp">Exportado el {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+            <hr>
+            {html_content}
+        </body>
+        </html>
+        """
+
+        # 7. Configurar fuentes
         font_config = FontConfiguration()
 
-        # Crear PDF desde HTML
+        # 8. Crear PDF desde HTML
         html = HTML(string=full_html)
 
-        # Crear un archivo temporal para el PDF
+        # 9. Crear un archivo temporal para el PDF
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
             # Generar el PDF
             html.write_pdf(
@@ -803,9 +1700,14 @@ def _export_chat_to_pdf_from_markdown(messages):
 def _export_chat_to_pdf_primary(messages):
     """
     Método primario: FPDF optimizado con manejo de errores mejorado
-    y división inteligente de texto para evitar problemas de espacio
+    y división inteligente de texto para evitar problemas de espacio.
+    Este método está optimizado para funcionar en Streamlit Cloud.
     """
-    from fpdf import FPDF
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        # Intentar con fpdf2 que es más compatible con Streamlit Cloud
+        from fpdf2 import FPDF
     import re
 
     class CustomPDF(FPDF):
@@ -954,12 +1856,19 @@ def _export_chat_to_pdf_primary(messages):
 def _export_chat_to_pdf_secondary(messages):
     """
     Método secundario: ReportLab para generación alternativa de PDF
-    con manejo mejorado de texto extenso
+    con manejo mejorado de texto extenso.
+    Este método está optimizado para funcionar en Streamlit Cloud.
     """
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.units import inch
+    try:
+        # Importar con manejo de errores para mayor compatibilidad
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.platypus import PageBreak  # Importar por separado para evitar errores
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+    except ImportError as e:
+        logging.error(f"Error importando ReportLab: {str(e)}")
+        raise e
     from reportlab.lib import colors
 
     # Crear buffer y documento

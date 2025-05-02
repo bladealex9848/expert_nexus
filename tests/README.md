@@ -29,6 +29,16 @@ Ubicadas en el subdirectorio `document_tests/`:
 - `setup.py`: Script para configurar el entorno de pruebas.
 - `set_env.py`: Script para configurar variables de entorno.
 
+### Pruebas de conversión Markdown a PDF
+
+Ubicadas en el subdirectorio `conversion_tests/`:
+
+- `run_tests.py`: Script principal para ejecutar todas las pruebas de conversión.
+- `test_conversion.py`: Prueba todos los métodos de conversión de Markdown a PDF.
+- `test_streamlit_cloud_conversion.py`: Prueba específica para el método optimizado para Streamlit Cloud.
+- `samples/`: Directorio con archivos Markdown de muestra para las pruebas.
+- `results/`: Directorio donde se guardan los PDFs generados y los informes de pruebas.
+
 ## Cómo ejecutar las pruebas
 
 ### Pruebas de selección de expertos

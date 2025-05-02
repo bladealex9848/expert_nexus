@@ -269,10 +269,17 @@ expert_nexus/
     ├── README.md              # Documentación de las pruebas
     ├── test_expert_selection.py  # Pruebas de selección de expertos
     ├── test_app_integration.py   # Pruebas de integración
-    └── document_tests/        # Pruebas de procesamiento de documentos
-        ├── README.md          # Documentación de las pruebas de documentos
-        ├── test_document_context.py  # Pruebas de contexto de documentos
-        └── ...                # Otros archivos de prueba
+    ├── document_tests/        # Pruebas de procesamiento de documentos
+    │   ├── README.md          # Documentación de las pruebas de documentos
+    │   ├── test_document_context.py  # Pruebas de contexto de documentos
+    │   └── ...                # Otros archivos de prueba
+    └── conversion_tests/      # Pruebas de conversión Markdown a PDF
+        ├── README.md          # Documentación de las pruebas de conversión
+        ├── run_tests.py       # Script principal para ejecutar todas las pruebas
+        ├── test_conversion.py # Prueba todos los métodos de conversión
+        ├── test_streamlit_cloud_conversion.py # Prueba específica para Streamlit Cloud
+        ├── samples/           # Archivos Markdown de muestra
+        └── results/           # PDFs generados y reportes
 ```
 
 ## 📚 Glosario de Funciones
@@ -291,6 +298,15 @@ expert_nexus/
 | `manage_document_context()` | Gestiona el contexto de documentos | app.py |
 | `verify_document_context()` | Verifica que los documentos estén correctamente procesados | app.py |
 | `process_message(message, expert_key)` | Procesa un mensaje con el experto especificado | app.py |
+
+### Funciones de Exportación a PDF (app.py)
+
+| Función | Descripción | Ubicación |
+|---------|-------------|-----------|
+| `_export_chat_to_pdf_streamlit_cloud(messages)` | Método optimizado para Streamlit Cloud usando pdfkit | app.py |
+| `_export_chat_to_pdf_primary(messages)` | Método primario usando FPDF | app.py |
+| `_export_chat_to_pdf_secondary(messages)` | Método secundario usando ReportLab | app.py |
+| `_export_chat_to_pdf_fallback(messages)` | Método de respaldo simple | app.py |
 
 ### Funciones de Selección de Expertos (expert_selection.py)
 
