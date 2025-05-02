@@ -21,6 +21,7 @@ app_full.py
 # Archivos de configuración de Streamlit
 .streamlit/
 logs/
+test/
 
 # Archivos de configuración con claves API reales
 .env
